@@ -1,6 +1,6 @@
    
 theory Lexer
-  imports Spec 
+  imports PosixSpec 
 begin
 
 section {* The Lexer Functions by Sulzmann and Lu  (without simplification) *}

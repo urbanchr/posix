@@ -1,6 +1,6 @@
    
 theory Positions
-  imports "Spec" "Lexer"
+  imports PosixSpec Lexer
 begin
 
 chapter \<open>An alternative definition for POSIX values\<close>
