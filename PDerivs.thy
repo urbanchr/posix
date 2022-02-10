@@ -598,7 +598,6 @@ fun pderso :: "char list \<Rightarrow> rexp \<Rightarrow> rexp set"
 
 lemma alternative_pder: 
   shows "pderso s r = pders s r"
-  sledgehammer
   oops
 
 lemma pdero_result: 
@@ -620,11 +619,6 @@ lemma Maxsubterms38:
   oops
 
 
-
-
-export_code height pders subs pderso in Scala module_name Pders 
-export_code pdero pderso in Scala module_name Pderso
-export_code pdero pderso in Scala module_name Pderso
 
 
 
