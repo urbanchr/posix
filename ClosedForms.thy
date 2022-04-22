@@ -710,7 +710,7 @@ lemma grewrites_shape2_aux:
    apply (simp add: concat_rdistinct_equality1)
   apply(case_tac "x \<in> set xs")
    apply simp
-   apply (simp add: distinct_removes_last2)
+   apply (simp add: distinct_removes_last)
   apply(case_tac "x \<in> set rsb")
    apply (smt (verit, ccfv_threshold) Un_iff append.right_neutral concat_rdistinct_equality1 insert_is_Un rdistinct.simps(2))
   apply(subgoal_tac "rsb @ rdistinct rs (set rsb) @ rdistinct (xs @ [x]) (set rs \<union> set rsb) = rsb @ rdistinct rs (set rsb) @ rdistinct xs (set rs \<union> set rsb) @ [x]")

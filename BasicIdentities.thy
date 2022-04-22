@@ -1,5 +1,5 @@
-theory BasicIdentities imports 
-"Lexer"  "PDerivs"
+theory BasicIdentities 
+  imports "Lexer" "PDerivs"
 begin
 
 datatype rrexp = 
@@ -14,16 +14,15 @@ abbreviation
   "RALT r1 r2 \<equiv> RALTS [r1, r2]"
 
 
-
 fun
  rnullable :: "rrexp \<Rightarrow> bool"
 where
   "rnullable (RZERO) = False"
-| "rnullable (RONE  ) = True"
-| "rnullable (RCHAR   c) = False"
-| "rnullable (RALTS   rs) = (\<exists>r \<in> set rs. rnullable r)"
-| "rnullable (RSEQ  r1 r2) = (rnullable r1 \<and> rnullable r2)"
-| "rnullable (RSTAR   r) = True"
+| "rnullable (RONE) = True"
+| "rnullable (RCHAR c) = False"
+| "rnullable (RALTS rs) = (\<exists>r \<in> set rs. rnullable r)"
+| "rnullable (RSEQ r1 r2) = (rnullable r1 \<and> rnullable r2)"
+| "rnullable (RSTAR r) = True"
 
 
 fun
@@ -64,47 +63,33 @@ lemma rdistinct1:
 
 lemma rdistinct_does_the_job:
   shows "distinct (rdistinct rs s)"
-  apply(induct rs arbitrary: s)
-  apply simp
-  apply simp
-  apply(auto)
-  by (simp add: rdistinct1)
-
+  apply(induct rs s rule: rdistinct.induct)
+  apply(auto simp add: rdistinct1)
+  done
 
 
 
 lemma rdistinct_concat:
-  shows "set rs \<subseteq> rset \<Longrightarrow> rdistinct (rs @ rsa) rset = rdistinct rsa rset"
+  assumes "set rs \<subseteq> rset"
+  shows "rdistinct (rs @ rsa) rset = rdistinct rsa rset"
+  using assms
   apply(induct rs)
-   apply simp+
+  apply simp+
   done
 
-lemma rdistinct_concat2:
-  shows "\<forall>r \<in> set rs. r \<in> rset \<Longrightarrow> rdistinct (rs @ rsa) rset = rdistinct rsa rset"
-  by (simp add: rdistinct_concat subsetI)
-
-
 lemma distinct_not_exist:
-  shows "a \<notin> set rs \<Longrightarrow> rdistinct rs rset = rdistinct rs (insert a rset)"
+  assumes "a \<notin> set rs"
+  shows "rdistinct rs rset = rdistinct rs (insert a rset)"
+  using assms
   apply(induct rs arbitrary: rset)
-   apply simp
-  apply(case_tac "aa \<in> rset")
-   apply simp
-  apply(subgoal_tac "a \<noteq> aa")
-   prefer 2
-  apply simp
-  apply simp
+  apply(auto)
   done
 
 lemma rdistinct_on_distinct:
   shows "distinct rs \<Longrightarrow> rdistinct rs {} = rs"
   apply(induct rs)
-   apply simp
-  apply(subgoal_tac "rdistinct rs {} = rs")
-   prefer 2
   apply simp
   using distinct_not_exist by fastforce
-
 
 lemma distinct_rdistinct_append:
   assumes "distinct rs1" "\<forall>r \<in> set rs1. r \<notin> acc"
@@ -122,13 +107,10 @@ lemma distinct_rdistinct_append:
   done
   
 
-
-
-
 lemma rdistinct_set_equality1:
   shows "set (rdistinct rs acc) = set rs - acc"
   apply(induct rs acc rule: rdistinct.induct)
-   apply(auto)
+  apply(auto)
   done
 
 lemma rdistinct_set_equality:
@@ -143,20 +125,18 @@ fun rflts :: "rrexp list \<Rightarrow> rrexp list"
 | "rflts ((RALTS rs1) # rs) = rs1 @ rflts rs"
 | "rflts (r1 # rs) = r1 # rflts rs"
 
+
 lemma rflts_def_idiot:
-  shows "\<lbrakk> a \<noteq> RZERO; \<nexists>rs1. a = RALTS rs1\<rbrakk>
-       \<Longrightarrow> rflts (a # rs) = a # rflts rs"
+  shows "\<lbrakk> a \<noteq> RZERO; \<nexists>rs1. a = RALTS rs1\<rbrakk> \<Longrightarrow> rflts (a # rs) = a # rflts rs"
   apply(case_tac a)
-       apply simp_all
+  apply simp_all
   done
 
 lemma rflts_def_idiot2:
   shows "\<lbrakk>a \<noteq> RZERO; \<nexists>rs1. a = RALTS rs1; a \<in> set rs\<rbrakk> \<Longrightarrow> a \<in> set (rflts rs)"
-  apply(induct rs)
-   apply simp
-  by (metis append.assoc in_set_conv_decomp insert_iff list.simps(15) rflts.simps(2) rflts.simps(3) rflts_def_idiot)
-
-
+  apply(induct rs rule: rflts.induct)
+  apply(auto)
+  done
 
 lemma flts_append:
   shows "rflts (rs1 @ rs2) = rflts rs1 @ rflts rs2"
@@ -172,15 +152,6 @@ fun rsimp_ALTs :: " rrexp list \<Rightarrow> rrexp"
   "rsimp_ALTs  [] = RZERO"
 | "rsimp_ALTs [r] =  r"
 | "rsimp_ALTs rs = RALTS rs"
-
-lemma rsimpalts_gte2elems:
-  shows "size rlist \<ge> 2 \<Longrightarrow> rsimp_ALTs rlist = RALTS rlist"
-  apply(induct rlist)
-   apply simp
-  apply(induct rlist)
-   apply simp
-  apply (metis Suc_le_length_iff rsimp_ALTs.simps(3))
-  by blast
 
 lemma rsimpalts_conscons:
   shows "rsimp_ALTs (r1 # rsa @ r2 # rsb) = RALTS (r1 # rsa @ r2 # rsb)"
@@ -249,7 +220,7 @@ lemma rsimp_aalts_smaller:
 
 
 lemma rSEQ_mono:
-  shows "rsize (rsimp_SEQ r1 r2) \<le>rsize ( RSEQ r1 r2)"
+  shows "rsize (rsimp_SEQ r1 r2) \<le>rsize (RSEQ r1 r2)"
   apply auto
   apply(induct r1)
        apply auto
@@ -282,18 +253,20 @@ lemma rflts_mono:
   apply(erule exE)
    apply simp
   apply(subgoal_tac "rflts (a # rs) = a # (rflts rs)")
-  prefer 2
+   prefer 2
+  
   using rflts_def_idiot apply blast
   apply simp
   done
 
-lemma rdistinct_smaller: shows "sum_list (map rsize (rdistinct rs ss)) \<le>
-sum_list (map rsize rs )"
+lemma rdistinct_smaller: 
+  shows "sum_list (map rsize (rdistinct rs ss)) \<le> sum_list (map rsize rs)"
   apply (induct rs arbitrary: ss)
    apply simp
   by (simp add: trans_le_add2)
 
-lemma rdistinct_phi_smaller: "sum_list (map rsize (rdistinct rs {})) \<le> sum_list (map rsize rs)"
+lemma rdistinct_phi_smaller: 
+  "sum_list (map rsize (rdistinct rs {})) \<le> sum_list (map rsize rs)"
   by (simp add: rdistinct_smaller)
 
 
@@ -378,21 +351,6 @@ lemma rders_simp_append:
   done
 
 
-
-lemma set_related_list:
-  shows "distinct rs  \<Longrightarrow> length rs = card (set rs)"
-  by (simp add: distinct_card)
-(*this section deals with the property of distinctBy: creates a list without duplicates*)
-lemma rdistinct_never_added_twice:
-  shows "rdistinct (a # rs) {a} = rdistinct rs {a}"
-  by force
-
-
-
-
-
-
-
 lemma rders_simp_one_char:
   shows "rders_simp r [c] = rsimp (rder c r)"
   apply auto
@@ -445,31 +403,6 @@ lemma good0:
   apply(auto)
   done
 
-lemma good0a:
-  assumes "rflts (map rsimp rs) \<noteq> Nil" "\<forall>r \<in> set (rflts (map rsimp rs)). nonalt r"
-  shows "good (rsimp (RALTS rs)) \<longleftrightarrow> (\<forall>r \<in> set (rflts (map rsimp rs)). good r)"
-  using  assms
-  apply(simp)
-  apply(auto)
-   apply(subst (asm) good0)
-  
-  apply (metis rdistinct_set_equality set_empty)
-   apply(simp)
-    apply(auto)
-     apply (metis rdistinct_set_equality)
-  using rdistinct_does_the_job apply blast
-  apply (metis rdistinct_set_equality)
-  by (metis good0 rdistinct_does_the_job rdistinct_set_equality set_empty)
-
-
-lemma flts0:
-  assumes "r \<noteq> RZERO" "nonalt r"
-  shows "rflts [r] \<noteq> []"
-  using  assms
-  apply(induct r)
-       apply(simp_all)
-  done
-
 lemma flts1:
   assumes "good r" 
   shows "rflts [r] \<noteq> []"
@@ -506,54 +439,12 @@ lemma flts3:
         apply(simp_all)
   by (metis UnE flts2 k0a)
 
-lemma flts3b:
-  assumes "\<exists>r\<in>set rs. good r"
-  shows "rflts rs \<noteq> []"
-  using  assms
-  apply(induct rs arbitrary: rule: rflts.induct)
-        apply(simp)
-       apply(simp)
-      apply(simp)
-      apply(auto)
-  done
-
-lemma flts4:
-  assumes "rsimp_ALTs (rflts rs) = RZERO"
-  shows "\<forall>r \<in> set rs. \<not> good r"
-  using assms
-  apply(induct rs  rule: rflts.induct)
-        apply(auto)
-        defer
-  apply (metis (no_types, lifting) Nil_is_append_conv append_self_conv2 rsimp_ALTs.elims butlast.simps(2) butlast_append flts3b nonalt.simps(1) nonalt.simps(2))
-  using rsimp_ALTs.elims apply auto[1]
-  using rsimp_ALTs.elims apply auto[1]
-  using rsimp_ALTs.elims apply auto[1]
-  using rsimp_ALTs.elims apply auto[1]
-  using rsimp_ALTs.elims apply auto[1]
-  by (smt (verit, del_insts) append_Cons append_is_Nil_conv bbbbs k0a list.inject rrexp.distinct(7) rsimp_ALTs.elims)
-
 
 lemma  k0:
   shows "rflts (r # rs1) = rflts [r] @ rflts rs1"
   apply(induct r arbitrary: rs1)
    apply(auto)
   done
-
-lemma flts_nil2:
-  assumes "\<forall>y. rsize y < Suc (sum_list (map rsize rs)) \<longrightarrow>
-            good (rsimp y) \<or> rsimp y = RZERO"
-  and "rsimp_ALTs  (rflts (map rsimp rs)) = RZERO"
-  shows "rflts (map rsimp rs) = []"
-  using assms
-  apply(induct rs)
-   apply(simp)
-  apply(simp)
-  apply(subst k0)
-  apply(simp)
-  apply(subst (asm) k0)
-  apply(auto)
-  apply (metis rflts.simps(1) rflts.simps(2) flts4 k0 less_add_Suc1 list.set_intros(1))
-  by (metis flts4 k0 less_add_Suc1 list.set_intros(1) rflts.simps(2))
 
 
 lemma good_SEQ:
@@ -603,22 +494,6 @@ lemma k0b:
   using assms
   apply(case_tac  r)
   apply(simp_all)
-  done
-
-lemma nn1:
-  assumes "nonnested (RALTS rs)"
-  shows "\<nexists> rs1. rflts rs = [RALTS rs1]"
-  using assms
-  apply(induct rs rule: rflts.induct)
-  apply(auto)
-  done
-
-lemma nn1q:
-  assumes "nonnested (RALTS rs)"
-  shows "\<nexists>rs1. RALTS rs1 \<in> set (rflts rs)"
-  using assms
-  apply(induct rs rule: rflts.induct)
-  apply(auto)
   done
 
 lemma nn1qq:
@@ -682,31 +557,11 @@ lemma nn1b:
   using idiot2 nonnested.simps(11) apply presburger
   by (metis (mono_tags, lifting) image_iff list.set_map nn1bb nn1c rdistinct_set_equality)
 
-  
-lemma nn1d:
-  assumes "rsimp r = RALTS rs"
-  shows "\<forall>r1 \<in> set rs. \<forall>  bs. r1 \<noteq> RALTS  rs2"
-  using nn1b assms
-  by (metis nn1qq)
-
-lemma nn_flts:
-  assumes "nonnested (RALTS rs)"
-  shows "\<forall>r \<in>  set (rflts rs). nonalt r"
-  using assms
-  apply(induct rs rule: rflts.induct)
-        apply(auto)
-  done
-
 lemma nonalt_flts_rd:
   shows "\<lbrakk>xa \<in> set (rdistinct (rflts (map rsimp rs)) {})\<rbrakk>
        \<Longrightarrow> nonalt xa"
   by (metis ex_map_conv nn1b nn1c rdistinct_set_equality)
 
-lemma distinct_accLarge_empty:
-  shows "rset \<subseteq> rset' \<Longrightarrow> rdistinct rs rset = [] \<Longrightarrow> rdistinct rs rset' = []"
-  apply(induct rs arbitrary: rset rset')
-   apply simp+
-  by (metis list.distinct(1) subsetD)
 
 lemma rsimpalts_implies1:
   shows " rsimp_ALTs (a # rdistinct rs {a}) = RZERO \<Longrightarrow> a = RZERO"
@@ -722,27 +577,6 @@ lemma rsimpalts_implies21:
   using rsimpalts_implies2 by blast
 
 
-lemma hollow_removemore_hollow:
-  shows "rsimp_ALTs (rdistinct rs {}) = RZERO \<Longrightarrow> 
-rsimp_ALTs (rdistinct rs rset) = RZERO "
-  apply(induct rs arbitrary: rset)
-   apply simp
-  apply simp
-  apply(case_tac " a \<in> rset")
-   apply simp
-   apply(drule_tac x = "rset" in meta_spec)
-  apply (smt (verit, best) Un_insert_left empty_iff rdistinct.elims rdistinct.simps(2) rrexp.distinct(7) rsimp_ALTs.simps(1) rsimp_ALTs.simps(3) singletonD sup_bot_left)
-  apply simp
-  apply(subgoal_tac "a = RZERO")
-  apply(subgoal_tac "rdistinct rs (insert a rset) = []")
-  using rsimp_ALTs.simps(2) apply presburger
-   apply(subgoal_tac "rdistinct rs {a} = []")
-  apply(subgoal_tac "{a} \<subseteq> insert a rset")
-  apply (meson distinct_accLarge_empty)
-    apply blast
-  using rsimpalts_implies21 apply blast
-  using rsimpalts_implies1 by blast
-
 lemma bsimp_ASEQ2:
   shows "rsimp_SEQ RONE r2 =  r2"
   apply(induct r2)
@@ -755,45 +589,12 @@ lemma elem_smaller_than_set:
    apply simp
   by (metis image_eqI le_imp_less_Suc list.set_map member_le_sum_list)
 
-
-lemma smaller_corresponding:
-  shows "xa \<in> set (map rsimp list) \<Longrightarrow> \<exists>xa' \<in> set list. rsize xa \<le> rsize xa'"
-  apply(induct list)
-   apply simp
-  by (metis list.set_intros(1) list.set_intros(2) list.simps(9) rsimp_mono set_ConsD)
-
-lemma simpelem_smaller_than_set:
-  shows "xa \<in> set (map rsimp list) \<Longrightarrow> rsize xa < Suc ( sum_list (map rsize ( list)))"
-  apply(subgoal_tac "\<exists>xa' \<in> set list. rsize xa \<le> rsize xa'")
-   
-  using elem_smaller_than_set order_le_less_trans apply blast
-  using smaller_corresponding by presburger
-
-
 lemma rsimp_list_mono:
   shows "sum_list (map rsize (map rsimp rs)) \<le> sum_list (map rsize rs)"
   apply(induct rs)
    apply simp+
   by (simp add: add_mono_thms_linordered_semiring(1) rsimp_mono)
 
-lemma good1_obvious_but_isabelle_needs_clarification:
-  shows "       \<lbrakk>\<forall>y. rsize y < Suc (rsize a + sum_list (map rsize list)) \<longrightarrow> good (rsimp y) \<or> rsimp y = RZERO;
-        rsimp_ALTs (rdistinct (rflts (map rsimp list)) {}) = RZERO; good (rsimp a);
-        xa \<in> set (rdistinct (rflts (rsimp a # map rsimp list)) {})\<rbrakk>
-       \<Longrightarrow> rsize xa < Suc (rsize a + sum_list (map rsize list))"
-  apply(subgoal_tac "rsize xa \<le> 
-          sum_list (map rsize (rdistinct (rflts (rsimp a # map rsimp list)) {}))")
-  apply(subgoal_tac "  sum_list (map rsize (rdistinct (rflts (rsimp a # map rsimp list)) {})) \<le>
-                       sum_list (map rsize ( (rflts (rsimp a # map rsimp list))))")
-  apply(subgoal_tac " sum_list (map rsize ( (rflts (rsimp a # map rsimp list)))) \<le>
-                      sum_list (map rsize  (rsimp a # map rsimp list))")
-  apply(subgoal_tac " sum_list (map rsize (rsimp a # map rsimp list)) \<le>
-                      sum_list (map rsize (a # list))")
-  apply simp
-  apply (metis Cons_eq_map_conv rsimp_list_mono)
-  using rflts_mono apply blast
-  using rdistinct_phi_smaller apply blast
-  using elem_smaller_than_set less_Suc_eq_le by blast
 
 (*says anything coming out of simp+flts+db will be good*)
 lemma good2_obv_simplified:
@@ -805,18 +606,6 @@ lemma good2_obv_simplified:
   by (metis flts3 rdistinct_set_equality)
 
   
-
-
-lemma good2_obvious_but_isabelle_needs_clarification:
-  shows "\<And>a list xa.
-       \<lbrakk>\<forall>y. rsize y < Suc (rsize a + sum_list (map rsize list)) \<longrightarrow> good (rsimp y) \<or> rsimp y = RZERO;
-        rsimp_ALTs (rdistinct (rflts (map rsimp list)) {}) = RZERO; good (rsimp a);
-        xa \<in> set (rdistinct (rflts (rsimp a # map rsimp list)) {}); good (rsimp xa) \<or> rsimp xa = RZERO\<rbrakk>
-       \<Longrightarrow> good xa"
-  by (metis good2_obv_simplified list.simps(9) sum_list.Cons)
-
-  
-
 lemma good1:
   shows "good (rsimp a) \<or> rsimp a = RZERO"
   apply(induct a taking: rsize rule: measure_induct)
@@ -912,57 +701,6 @@ lemma RL_rsimp:
   using RL_rsimp_RALTS RL_rsimp_rdistinct RL_rsimp_rflts apply auto[1]
   by (smt (verit, del_insts) RL_rsimp_RALTS RL_rsimp_rdistinct RL_rsimp_rflts UN_E image_iff list.set_map)
 
-lemma RL_rders:
-  shows "RL (rders_simp r s) = RL (rders r s)"
-  apply(induct s arbitrary: r rule: rev_induct)
-   apply(simp)
-  apply(simp add: rders_append rders_simp_append) 
-  apply(subst RL_rsimp[symmetric])
-  using RL_rder by force
-  
-
-lemma good1a:
-  assumes "RL a \<noteq> {}"
-  shows "good (rsimp a)"
-  using good1 assms
-  by (metis RL.simps(1) RL_rsimp)
-
-
-
-lemma g1:
-  assumes "good (rsimp_ALTs  rs)"
-  shows "rsimp_ALTs  rs = RALTS rs \<or> (\<exists>r. rs = [r] \<and> rsimp_ALTs  [r] =  r)"
-using assms
-    apply(induct rs)
-  apply(simp)
-  apply(case_tac rs)
-  apply(simp only:)
-  apply(simp)
-  apply(case_tac  list)
-  apply(simp)
-  by simp
-
-lemma flts_0:
-  assumes "nonnested (RALTS   rs)"
-  shows "\<forall>r \<in> set (rflts rs). r \<noteq> RZERO"
-  using assms
-  apply(induct rs  rule: rflts.induct)
-        apply(simp) 
-       apply(simp) 
-      defer
-      apply(simp) 
-     apply(simp) 
-    apply(simp) 
-apply(simp) 
-  apply(rule ballI)
-  apply(simp)
-  done
-
-lemma flts_0a:
-  assumes "nonnested (RALTS   rs)"
-  shows "RZERO \<notin> set (rflts rs)"
-  using assms
-  using flts_0 by blast 
   
 lemma qqq1:
   shows "RZERO \<notin> set (rflts (map rsimp rs))"
@@ -974,13 +712,6 @@ fun nonazero :: "rrexp \<Rightarrow> bool"
   "nonazero RZERO = False"
 | "nonazero r = True"
 
-lemma flts_concat:
-  shows "rflts rs = concat (map (\<lambda>r. rflts [r]) rs)"
-  apply(induct rs)
-   apply(auto)
-  apply(subst k0)
-  apply(simp)
-  done
 
 lemma flts_single1:
   assumes "nonalt r" "nonazero r"
@@ -989,37 +720,6 @@ lemma flts_single1:
   apply(induct r)
   apply(auto)
   done
-
-lemma flts_qq:
-  assumes "\<forall>y. rsize y < Suc (sum_list (map rsize rs)) \<longrightarrow> good y \<longrightarrow> rsimp y = y" 
-          "\<forall>r'\<in>set rs. good r' \<and> nonalt r'"
-  shows "rflts (map rsimp rs) = rs"
-  using assms
-  apply(induct rs)
-   apply(simp)
-  apply(simp)
-  apply(subst k0)
-  apply(subgoal_tac "rflts [rsimp a] =  [a]")
-   prefer 2
-   apply(drule_tac x="a" in spec)
-   apply(drule mp)
-    apply(simp)
-   apply(auto)[1]
-  using good.simps(1) k0b apply blast
-  apply(auto)[1]  
-  done
-
-lemma sublist_distinct:
-  shows "distinct (rs1 @ rs2 ) \<Longrightarrow> distinct rs1 \<and> distinct rs2"
-  using distinct_append by blast
-
-lemma first2elem_distinct:
-  shows "distinct (a # b # rs) \<Longrightarrow> a \<noteq> b"
-  by force
-
-lemma rdistinct_does_not_remove:
-  shows "((\<forall>r \<in> rset. r \<notin> set rs) \<and> (distinct rs)) \<Longrightarrow> rdistinct rs rset = rs"
-  by (metis append.right_neutral distinct_rdistinct_append rdistinct.simps(1))
 
 lemma nonalt0_flts_keeps:
   shows "(a \<noteq> RZERO) \<and> (\<forall>rs. a \<noteq> RALTS rs) \<Longrightarrow> rflts (a # xs) = a # rflts xs"
@@ -1100,7 +800,7 @@ lemma test:
                       apply (metis good.simps(6) insert_iff list.simps(15))
 
   apply (meson distinct.simps(2))
-                      apply (simp add: distinct.simps(2) distinct_length_2_or_more)
+                      apply (simp add: distinct_length_2_or_more)
                       apply simp+
   done
 
@@ -1111,24 +811,6 @@ lemma rsimp_idem:
   using test good1
   by force
 
-
-
-
-
-corollary rsimp_inner_idem1:
-  shows "rsimp r = RSEQ r1 r2 \<Longrightarrow> rsimp r1 = r1 \<and> rsimp r2 = r2"
-  by (metis bsimp_ASEQ0 good.simps(7) good.simps(8) good1 good_SEQ rrexp.distinct(5) rsimp.simps(1) rsimp.simps(3) test)
-  
-
-corollary rsimp_inner_idem2:
-  shows "rsimp r = RALTS rs \<Longrightarrow> \<forall>r' \<in> (set rs). rsimp r' = r'"
-  by (metis flts2 good1 k0a rrexp.simps(12) test)
-  
-
-corollary rsimp_inner_idem3:
-  shows "rsimp r = RALTS rs \<Longrightarrow> map rsimp rs = rs"
-  by (meson map_idI rsimp_inner_idem2)
-
 corollary rsimp_inner_idem4:
   shows "rsimp r = RALTS rs \<Longrightarrow> rflts rs = rs"
   by (metis good1 goodalts_nonalt rrexp.simps(12))
@@ -1138,52 +820,11 @@ lemma head_one_more_simp:
   shows "map rsimp (r # rs) = map rsimp (( rsimp r) # rs)"
   by (simp add: rsimp_idem)
 
-lemma head_one_more_dersimp:
-  shows "map rsimp ((rder x (rders_simp r s) # rs)) = map rsimp ((rders_simp r (s@[x]) ) # rs)"
-  using head_one_more_simp rders_simp_append rders_simp_one_char by presburger
-
-
 
 lemma der_simp_nullability:
   shows "rnullable r = rnullable (rsimp r)"
   using RL_rnullable RL_rsimp by auto
   
-
-lemma ders_simp_nullability:
-  shows "rnullable (rders r s) = rnullable (rders_simp r s)"
-  apply(induct s arbitrary: r rule: rev_induct)
-   apply(simp)
-  apply(simp add: rders_append rders_simp_append)
-  apply(simp only: RL_rnullable)
-  apply(simp only: RL_rder)
-  apply(subst RL_rsimp[symmetric])
-  apply(simp only: RL_rder)
-  by (simp add: RL_rders)
-
-
-
-
-
-
-lemma  first_elem_seqder:
-  shows "\<not>rnullable r1p \<Longrightarrow> map rsimp (rder x (RSEQ r1p r2)
-                   # rs) = map rsimp ((RSEQ (rder x r1p) r2) # rs) "
-  by auto
-
-lemma first_elem_seqder1:
-  shows  "\<not>rnullable (rders_simp r xs) \<Longrightarrow> map rsimp ( (rder x (RSEQ (rders_simp r xs) r2)) # rs) = 
-                                          map rsimp ( (RSEQ (rsimp (rder x (rders_simp r xs))) r2) # rs)"
-  by (simp add: rsimp_idem)
-
-lemma first_elem_seqdersimps:
-  shows "\<not>rnullable (rders_simp r xs) \<Longrightarrow> map rsimp ( (rder x (RSEQ (rders_simp r xs) r2)) # rs) = 
-                                          map rsimp ( (RSEQ (rders_simp r (xs @ [x])) r2) # rs)"
-  using first_elem_seqder1 rders_simp_append by auto
-
-
-
-
-
 
 lemma no_alt_short_list_after_simp:
   shows "RALTS rs = rsimp r \<Longrightarrow> rsimp_ALTs rs = RALTS rs"
@@ -1282,14 +923,6 @@ lemma distinct_removes_middle3:
     \<Longrightarrow> rdistinct (as @ a #as2) rset = rdistinct (as @ as2) rset"
   using distinct_removes_middle(1) by fastforce
 
-lemma distinct_removes_last2:
-  shows "\<lbrakk>a \<in> set as\<rbrakk>
-    \<Longrightarrow> rdistinct as rset = rdistinct (as @ [a]) rset"
-  by (simp add: distinct_removes_last(1))
-
-lemma distinct_removes_middle2:
-  shows "a \<in> set as \<Longrightarrow> rdistinct (as @ [a] @ rs) {} = rdistinct (as @ rs) {}"
-  by (metis distinct_removes_middle(1))
 
 lemma distinct_removes_list:
   shows "\<lbrakk> \<forall>r \<in> set rs. r \<in> set as\<rbrakk> \<Longrightarrow> rdistinct (as @ rs) {} = rdistinct as {}"
@@ -1320,17 +953,6 @@ lemma spawn_simp_rsimpalts:
   apply auto
   apply(subst rsimp_idem)+
   by (metis comp_apply rsimp_idem)
-
-
-
-
-
-
-lemma rsimp_no_dup:
-  shows "rsimp r = RALTS rs \<Longrightarrow> distinct rs"
-  by (metis no_further_dB_after_simp rdistinct_does_the_job)
-
-
 
 
 lemma simp_singlealt_flatten:
@@ -1466,20 +1088,6 @@ lemma stupdates_append: shows
   apply simp
   done
 
-
-lemma distinct_flts_no0:
-  shows "  rflts (map rsimp (rdistinct rs (insert RZERO rset)))  =
-           rflts (map rsimp (rdistinct rs rset))  "
-  
-  apply(induct rs arbitrary: rset)
-   apply simp
-  apply(case_tac a)
-  apply simp+
-    apply (smt (verit, ccfv_SIG) rflts.simps(2) rflts.simps(3) rflts_def_idiot)
-  prefer 2
-  apply simp  
-  by (smt (verit, ccfv_threshold) Un_insert_right insert_iff list.simps(9) rdistinct.simps(2) rflts.simps(2) rflts.simps(3) rflts_def_idiot rrexp.distinct(7))
-
 lemma flts_removes0:
   shows "  rflts (rs @ [RZERO])  =
            rflts rs"
@@ -1489,30 +1097,22 @@ lemma flts_removes0:
   
 
 lemma rflts_spills_last:
-  shows "a = RALTS rs \<Longrightarrow> rflts (rs1 @ [a]) = rflts rs1 @ rs"
-  apply (induct rs1)
-  apply simp
-  by (metis append.assoc append_Cons rflts.simps(2) rflts.simps(3) rflts_def_idiot)
+  shows "rflts (rs1 @ [RALTS rs]) = rflts rs1 @ rs"
+  apply (induct rs1 rule: rflts.induct)
+  apply(auto)
+  done
 
 lemma flts_keeps1:
-  shows " rflts (rs @ [RONE]) = 
-          rflts  rs @ [RONE] "
-  apply (induct rs)
-   apply simp
-  by (metis append.assoc append_Cons rflts.simps(2) rflts.simps(3) rflts_def_idiot)
+  shows "rflts (rs @ [RONE]) = rflts rs @ [RONE]"
+  apply (induct rs rule: rflts.induct)
+  apply(auto)
+  done
 
 lemma flts_keeps_others:
   shows "\<lbrakk>a \<noteq> RZERO; \<nexists>rs1. a = RALTS rs1\<rbrakk> \<Longrightarrow>rflts (rs @ [a]) = rflts rs @ [a]"
-  apply(induct rs)
-   apply simp
-  apply (simp add: rflts_def_idiot)
-  apply(case_tac a)
-       apply simp
-  using flts_keeps1 apply blast
-     apply (metis append.assoc append_Cons rflts.simps(2) rflts.simps(3) rflts_def_idiot)
-  apply (metis append.assoc append_Cons rflts.simps(2) rflts.simps(3) rflts_def_idiot)
-  apply blast
-  by (metis append.assoc append_Cons rflts.simps(2) rflts.simps(3) rflts_def_idiot)
+  apply(induct rs rule: rflts.induct)
+  apply(auto)
+  by (meson k0b nonalt.elims(3))
 
 lemma spilled_alts_contained:
   shows "\<lbrakk>a = RALTS rs ; a \<in> set rs1\<rbrakk> \<Longrightarrow> \<forall>r \<in> set rs. r \<in> set (rflts rs1)"
@@ -1538,7 +1138,7 @@ lemma distinct_removes_duplicate_flts:
            rdistinct (rflts (map rsimp rsa)) {}"
   apply(subgoal_tac "rsimp a \<in> set (map rsimp rsa)")
   prefer 2
-  apply simp
+   apply simp
   apply(induct "rsimp a")
        apply simp
   using flts_removes0 apply presburger
@@ -1546,32 +1146,32 @@ lemma distinct_removes_duplicate_flts:
                           rdistinct (rflts (map rsimp rsa @ [RONE])) {}")
       apply (simp only:)
        apply(subst flts_keeps1)
-  apply (metis distinct_removes_last2 rflts_def_idiot2 rrexp.simps(20) rrexp.simps(6))
+  apply (metis distinct_removes_last(1) rflts_def_idiot2 rrexp.simps(20) rrexp.simps(6))
       apply presburger
         apply(subgoal_tac " rdistinct (rflts (map rsimp rsa @ [rsimp a]))    {} =  
                             rdistinct ((rflts (map rsimp rsa)) @ [RCHAR x]) {}")
       apply (simp only:)
       prefer 2
       apply (metis flts_keeps_others rrexp.distinct(21) rrexp.distinct(3))
-  apply (metis distinct_removes_last2 rflts_def_idiot2 rrexp.distinct(21) rrexp.distinct(3))
+  apply (metis distinct_removes_last(1) rflts_def_idiot2 rrexp.distinct(21) rrexp.distinct(3))
 
-    apply (metis distinct_removes_last2 flts_keeps_others rflts_def_idiot2 rrexp.distinct(25) rrexp.distinct(5))
+    apply (metis distinct_removes_last(1) flts_keeps_others rflts_def_idiot2 rrexp.distinct(25) rrexp.distinct(5))
    prefer 2
-   apply (metis distinct_removes_last2 flts_keeps_others flts_removes0 rflts_def_idiot2 rrexp.distinct(29))
+   apply (metis distinct_removes_last(1) flts_keeps_others flts_removes0 rflts_def_idiot2 rrexp.distinct(29))
   apply(subgoal_tac "rflts (map rsimp rsa @ [rsimp a]) = rflts (map rsimp rsa) @ x")
   prefer 2
   apply (simp add: rflts_spills_last)
-  apply(simp only:)
   apply(subgoal_tac "\<forall> r \<in> set x. r \<in> set (rflts (map rsimp rsa))")
-  prefer 2
-  using spilled_alts_contained apply presburger
-  using distinct_removes_list by blast
+    prefer 2
+  apply (metis (mono_tags, lifting) image_iff image_set spilled_alts_contained)
+  apply (metis rflts_spills_last)
+  by (metis distinct_removes_list spilled_alts_contained)
 
 
 
 (*some basic facts about rsimp*)
 
-
+unused_thms
 
 
 end

@@ -7,21 +7,22 @@ lemma alts_ders_lambda_shape_ders:
   by (simp add: image_iff)
 
 lemma rlist_bound:
-  shows "\<forall>r \<in> set rs. rsize r \<le> N \<Longrightarrow> sum_list (map rsize rs) \<le> N * (length rs)"
+  assumes "\<forall>r \<in> set rs. rsize r \<le> N"
+  shows "sum_list (map rsize rs) \<le> N * (length rs)"
+  using assms
   apply(induct rs)
   apply simp
   by simp
 
-
-lemma alts_closed_form_bounded: shows
-"\<forall>r \<in> set rs. \<forall>s. rsize(rders_simp r s ) \<le> N \<Longrightarrow> 
-rsize (rders_simp (RALTS rs ) s) \<le> max (Suc ( N * (length rs))) (rsize (RALTS rs) )"
+lemma alts_closed_form_bounded: 
+  assumes "\<forall>r \<in> set rs. \<forall>s. rsize(rders_simp r s) \<le> N"
+  shows "rsize (rders_simp (RALTS rs) s) \<le> max (Suc (N * (length rs))) (rsize (RALTS rs))"
   apply(induct s)
   apply simp
   apply(subst alts_closed_form_variant)
-   apply force
+  apply force
   apply(subgoal_tac "rsize (rsimp (RALTS (map (\<lambda>r. rders_simp r (a # s)) rs))) \<le> rsize ( (RALTS (map (\<lambda>r. rders_simp r (a # s)) rs)))")
-   prefer 2
+  prefer 2
   using rsimp_mono apply presburger
   apply(subgoal_tac "rsize (RALTS (map (\<lambda>r. rders_simp r (a # s)) rs)) =
                      Suc (sum_list  (map rsize (map (\<lambda>r. rders_simp r (a # s)) rs)))")
@@ -34,7 +35,8 @@ rsize (rders_simp (RALTS rs ) s) \<le> max (Suc ( N * (length rs))) (rsize (RALT
   apply(subgoal_tac "\<forall>r \<in> set (map (\<lambda>r. rders_simp r (a # s)) rs ). \<exists>r1 \<in> set rs. r = rders_simp r1 (a # s)")
   prefer 2
   using alts_ders_lambda_shape_ders apply presburger
-   apply metis
+  using assms
+  apply metis
   apply(frule rlist_bound)
   by fastforce
 
@@ -409,7 +411,9 @@ lemma not_mentioned_elem_distinct:
 
 
 lemma larger_acc_smaller_distinct_res0:
-  shows " ss \<subseteq> SS \<Longrightarrow> sum_list (map rsize (rdistinct rs SS)) \<le> sum_list (map rsize (rdistinct rs ss))"
+  assumes "ss \<subseteq> SS"
+  shows "sum_list (map rsize (rdistinct rs SS)) \<le> sum_list (map rsize (rdistinct rs ss))"
+  using assms
   apply(induct rs arbitrary: ss SS)
   apply simp
   apply(case_tac "a \<in> ss")
@@ -429,7 +433,7 @@ lemma larger_acc_smaller_distinct_res0:
 
 
 lemma without_flts_ineq:
-  shows " Suc (sum_list (map rsize (rdistinct (rflts rs) {}) )) \<le> 
+  shows "Suc (sum_list (map rsize (rdistinct (rflts rs) {}) )) \<le> 
          Suc (sum_list (map rsize (rdistinct (    rs  ) {}  )))"
 proof -
   have " Suc (sum_list (map rsize (rdistinct (rflts rs) {}) )) \<le>  
@@ -442,17 +446,10 @@ proof -
 qed
 
 
-
-
-
-
 lemma distinct_simp_ineq:
   shows "Suc (sum_list (map rsize (rdistinct (map rsimp rs) {})))
-    \<le> Suc (sum_list (map rsize (rdistinct rs {})))"
-  
+          \<le> Suc (sum_list (map rsize (rdistinct rs {})))"
   using distinct_simp_ineq_general by blast
-  
-
 
 
 lemma alts_simp_control:
@@ -467,33 +464,18 @@ proof -
 qed
 
 
-
-lemma rdistinct_equality1:
-  shows "a \<notin> ss \<Longrightarrow> rdistinct (a  # rs) ss = a # rdistinct rs (insert a ss) "
-  by auto
-
-
-
-
 lemma larger_acc_smaller_distinct_res:
-  shows " (sum_list (map rsize (rdistinct rs ss))) \<ge> (sum_list (map rsize (rdistinct rs (insert a ss))))"
+  shows "(sum_list (map rsize (rdistinct rs ss))) \<ge> (sum_list (map rsize (rdistinct rs (insert a ss))))"
   apply(subgoal_tac "ss \<subseteq> (insert a ss)")
    apply(rule larger_acc_smaller_distinct_res0)
    apply simp
   by (simp add: subset_insertI)
 
-lemma size_list_triangle1:
-  shows  "sum_list (map rsize (a # (rdistinct as ss))) \<ge> rsize a + sum_list (map rsize (rdistinct as (insert a ss)))"
-  by (simp add: larger_acc_smaller_distinct_res)
-
-
 lemma triangle_inequality_distinct:
   shows "sum_list (map rsize (rdistinct (a # rs) ss)) \<le> rsize a + (sum_list (map rsize (rdistinct rs ss)))"
   apply(case_tac "a \<in> ss")
    apply simp
-  apply(subst rdistinct_equality1)
-   apply simp
-  using size_list_triangle1 by auto
+  by (simp add: larger_acc_smaller_distinct_res)
 
 
 lemma distinct_list_sizeNregex_bounded:
@@ -522,8 +504,8 @@ lemma rdistinct_same_set:
 
 
 lemma distinct_list_rexp_up_to_certain_size_bouded_by_set_enumerating_up_to_that_size:
-  shows "\<forall>r\<in> set rs. (rsize r ) \<le> N \<Longrightarrow> sum_list (map rsize (rdistinct rs {})) \<le>
-         (card (sizeNregex N))* N"
+  assumes "\<forall>r\<in> set rs. (rsize r) \<le> N"
+  shows "sum_list (map rsize (rdistinct rs {})) \<le> (card (sizeNregex N)) * N"
   apply(subgoal_tac "distinct (rdistinct rs {})")
   prefer 2
   using rdistinct_does_the_job apply blast
@@ -532,43 +514,31 @@ lemma distinct_list_rexp_up_to_certain_size_bouded_by_set_enumerating_up_to_that
    apply(rule conjI)+
     apply simp
    apply(rule conjI)
+  using assms
   apply (meson rdistinct_same_set)
    apply blast
   apply(subgoal_tac "\<forall>r \<in> set (rdistinct rs {}). rsize r \<le> N")
-  prefer 2
+   prefer 2
+  using assms
    apply (meson rdistinct_same_set)
   apply(subgoal_tac "length (rdistinct rs {}) = card (set (rdistinct rs {}))")
-  prefer 2
-  using set_related_list apply blast
-  apply(simp only:)
-  by (metis card_mono finite_size_n mem_Collect_eq sizeNregex_def subset_code(1))
-
-
-
-
-
-
-lemma star_closed_form_bounded_by_rdistinct_list_estimate:
-  shows "rsize (rsimp ( RALTS ( (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0) )
-         (star_updates s r0 [[c]]) ) ))) \<le>
-        Suc (sum_list (map rsize (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0) )
-         (star_updates s r0 [[c]]) ) {})  ) )"
-  by (metis alts_simp_control )
-
-
+   prefer 2
+  apply (simp add: distinct_card)
+  apply(simp)
+  by (metis card_mono finite_size_n mem_Collect_eq sizeNregex_def subsetI)
 
 
 lemma star_lambda_form:
   shows "\<forall> r \<in> set (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0)) ls). 
-        \<exists>s2. r = RSEQ (rders_simp r0 s2) (RSTAR r0) "
+        \<exists>s2. r = RSEQ (rders_simp r0 s2) (RSTAR r0)"
   by (meson ex_map_conv)
 
 
 lemma star_lambda_ders:
-  shows " \<forall>s. rsize (rders_simp r0 s) \<le> N \<Longrightarrow>
-    \<forall>r\<in>set (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0)) (star_updates s r0 [[c]])).
-       rsize r \<le> Suc (N + rsize (RSTAR r0))"
-  apply(insert star_lambda_form)
+  assumes "\<forall>s. rsize (rders_simp r0 s) \<le> N"
+  shows "\<forall>r\<in>set (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0)) (star_updates s r0 [[c]])).
+            rsize r \<le> Suc (N + rsize (RSTAR r0))"
+  using assms star_lambda_form
   apply(simp)
   done
 
@@ -576,15 +546,14 @@ lemma star_lambda_ders:
 
 
 lemma star_control_bounded:
-  shows "\<forall>s. rsize (rders_simp r0 s) \<le> N \<Longrightarrow>        
-      (sum_list (map rsize (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0))
+  assumes "\<forall>s. rsize (rders_simp r0 s) \<le> N"
+  shows "(sum_list (map rsize (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0))
          (star_updates s r0 [[c]]) ) {})  ) ) \<le> 
-(card (sizeNregex (Suc (N + rsize (RSTAR r0))))) * (Suc (N + rsize (RSTAR r0)))
-"
+(card (sizeNregex (Suc (N + rsize (RSTAR r0))))) * (Suc (N + rsize (RSTAR r0)))"
   apply(subgoal_tac "\<forall>r \<in> set (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0))
          (star_updates s r0 [[c]]) ). (rsize r ) \<le> Suc (N + rsize (RSTAR r0))")
    prefer 2
-  using star_lambda_ders apply blast
+  using star_lambda_ders assms apply blast
   using distinct_list_rexp_up_to_certain_size_bouded_by_set_enumerating_up_to_that_size by blast
 
 
@@ -604,9 +573,9 @@ lemma star_control_variant:
 
 
 lemma star_closed_form_bounded:
-  shows "\<forall>s. rsize (rders_simp r0 s) \<le> N \<Longrightarrow>
-              rsize (rders_simp (RSTAR r0) s) \<le> 
-max (   (Suc (card (sizeNregex (Suc (N + rsize (RSTAR r0))))) * (Suc (N + rsize (RSTAR r0)))))   (rsize (RSTAR r0))"
+  assumes "\<forall>s. rsize (rders_simp r0 s) \<le> N"
+  shows "rsize (rders_simp (RSTAR r0) s) \<le> 
+            max ((Suc (card (sizeNregex (Suc (N + rsize (RSTAR r0))))) * (Suc (N + rsize (RSTAR r0)))))   (rsize (RSTAR r0))"
   apply(case_tac s)
   apply simp
   apply(subgoal_tac " rsize (rders_simp (RSTAR r0) (a # list)) = 
@@ -619,13 +588,13 @@ rsize (rsimp ( RALTS ( (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0) ) (
 \<le>         Suc (sum_list (map rsize (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0) )
          (star_updates list r0 [[a]]) ) {})  ) )")
   prefer 2
-  using star_closed_form_bounded_by_rdistinct_list_estimate apply presburger
+  using alts_simp_control apply presburger
   apply(subgoal_tac "Suc (sum_list 
                  (map rsize
                    (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0)) (star_updates list r0 [[a]])) {}))) 
 \<le>  (Suc (card (sizeNregex (Suc (N + rsize (RSTAR r0))))) * Suc (N + rsize (RSTAR r0)))  ")
   apply auto[1]
-  using star_control_variant by blast
+  using star_control_variant assms by blast
 
 lemma seq_estimate_bounded: 
   assumes "\<forall>s. rsize (rders_simp r1 s) \<le> N1" 
@@ -675,7 +644,6 @@ qed
 
 
 lemma rders_simp_bounded: 
-  fixes "r"
   shows "\<exists>N. \<forall>s. rsize (rders_simp r s) \<le> N"
   apply(induct r)
   apply(rule_tac x = "Suc 0 " in exI)
@@ -690,10 +658,6 @@ lemma rders_simp_bounded:
   apply(assumption)
   apply (metis alts_closed_form_bounded size_list_estimation')
   using star_closed_form_bounded by blast
-
-corollary rders_simp_finiteness:
-  shows "\<forall>r. \<exists>N. \<forall>s. rsize (rders_simp r s) \<le> N"
-  using rders_simp_bounded by auto
 
 
 unused_thms
