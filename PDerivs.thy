@@ -424,17 +424,6 @@ lemma size_rexp:
   apply(simp_all)
   done
 
-(*
-lemma subs_card:
-  shows "card (subs r) \<le> Suc (size2 r + size2 r)"
-  apply(induct r)
-       apply(auto)
-    apply(subst card_insert)
-     apply(simp add: subs_finite)
-    apply(simp add: subs_finite)
-  oops
-*)
-
 lemma subs_size2:
   shows "\<forall>r1 \<in> subs r. size2 r1 \<le> Suc (size2 r * size2 r)"
   apply(induct r)
@@ -596,10 +585,6 @@ fun pderso :: "char list \<Rightarrow> rexp \<Rightarrow> rexp set"
   "pderso [] r = {r}"
 |  "pderso (c # s) r = \<Union> ( pderso s ` (pdero c r) )"
 
-lemma alternative_pder: 
-  shows "pderso s r = pders s r"
-  oops
-
 lemma pdero_result: 
   shows "pdero  c (STAR (ALT (CH c) (SEQ (CH c) (CH c)))) =  {SEQ (CH c)(STAR (ALT (CH c) (SEQ (CH c) (CH c)))),(STAR (ALT (CH c) (SEQ (CH c) (CH c))))}"
   apply(simp)
@@ -612,13 +597,6 @@ fun concatLen :: "rexp \<Rightarrow> nat" where
 "concatLen (SEQ v1 v2) = Suc (max (concatLen v1) (concatLen v2))" |
 " concatLen (ALT v1 v2) =  max (concatLen v1) (concatLen v2)" |
 " concatLen (STAR v) = Suc (concatLen v)" 
-
-text\<open>Antimirov's Theorem 3.8:\<close>
-lemma Maxsubterms38:
-  shows "\<forall>pt \<in> (pders_Set UNIV t). pt \<in> (subs t) \<or> pt = ONE \<or> pt = (SEQ t0 t1)"
-  oops
-
-
 
 
 
