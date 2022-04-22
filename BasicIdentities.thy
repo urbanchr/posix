@@ -113,6 +113,7 @@ lemma rdistinct_set_equality1:
   apply(auto)
   done
 
+
 lemma rdistinct_set_equality:
   shows "set (rdistinct rs {}) = set rs"
   by (simp add: rdistinct_set_equality1)
@@ -555,12 +556,12 @@ lemma nn1b:
     apply(auto)[1]
   using idiot apply fastforce
   using idiot2 nonnested.simps(11) apply presburger
-  by (metis (mono_tags, lifting) image_iff list.set_map nn1bb nn1c rdistinct_set_equality)
+  by (metis (mono_tags, lifting) Diff_empty image_iff list.set_map nn1bb nn1c rdistinct_set_equality1)
 
 lemma nonalt_flts_rd:
   shows "\<lbrakk>xa \<in> set (rdistinct (rflts (map rsimp rs)) {})\<rbrakk>
        \<Longrightarrow> nonalt xa"
-  by (metis ex_map_conv nn1b nn1c rdistinct_set_equality)
+  by (metis Diff_empty ex_map_conv nn1b nn1c rdistinct_set_equality1)
 
 
 lemma rsimpalts_implies1:
@@ -602,8 +603,8 @@ lemma good2_obv_simplified:
            xa \<in> set (rdistinct (rflts (map rsimp rs)) {}); good (rsimp xa) \<or> rsimp xa = RZERO\<rbrakk> \<Longrightarrow> good xa"
   apply(subgoal_tac " \<forall>xa' \<in> set (map rsimp rs). good xa' \<or> xa' = RZERO")
   prefer 2
-  apply (simp add: elem_smaller_than_set)
-  by (metis flts3 rdistinct_set_equality)
+   apply (simp add: elem_smaller_than_set)
+  by (metis Diff_empty flts3 rdistinct_set_equality1)
 
   
 lemma good1:
@@ -685,8 +686,8 @@ lemma RL_rsimp_RALTS:
 lemma RL_rsimp_rdistinct:
   shows "(\<Union> (set (map RL (rdistinct rs {})))) = (\<Union> (set (map RL rs)))"
   apply(auto)
-  apply (metis rdistinct_set_equality)
-  by (metis rdistinct_set_equality)
+  apply (metis Diff_iff rdistinct_set_equality1)
+  by (metis Diff_empty rdistinct_set_equality1)
 
 lemma RL_rsimp_rflts:
   shows "(\<Union> (set (map RL (rflts rs)))) = (\<Union> (set (map RL rs)))"
@@ -1035,7 +1036,7 @@ lemma distinct_once_enough:
 " rdistinct (rdistinct rs {} @ rsa) {} = rdistinct rs {} @ (rdistinct rsa (set rs))")
   apply(simp only:)
   using rdistinct_concat_general apply blast
-  apply (simp add: distinct_rdistinct_append rdistinct_set_equality)
+  apply (simp add: distinct_rdistinct_append rdistinct_set_equality1)
   by (simp add: rdistinct_does_the_job)
   
 
@@ -1044,7 +1045,7 @@ lemma simp_flatten:
   apply simp
   apply(subst flatten_rsimpalts)
   apply(simp add: flts_append)
-  by (metis distinct_once_enough nonalt0_fltseq nonalt_flts_rd qqq1 rdistinct_set_equality)
+  by (metis Diff_empty distinct_once_enough flts_append nonalt0_fltseq nonalt_flts_rd qqq1 rdistinct_set_equality1)
 
 lemma basic_rsimp_SEQ_property1:
   shows "rsimp_SEQ RONE r = r"

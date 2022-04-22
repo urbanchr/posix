@@ -404,15 +404,15 @@ lemma good_flatten_aux:
    apply simp
    apply(case_tac "a \<in> rset")
     apply simp
-  apply (metis append_Cons append_Nil flts_append list.set(1) list.simps(15) nonalt.simps(1) nonalt0_flts_keeps nonalt_flts_rd qqq1 rdistinct.simps(2) rdistinct_set_equality singleton_iff)
+  apply (metis append.left_neutral append_Cons equals0D k0b list.set_intros(1) nonalt_flts_rd qqq1 rdistinct.simps(2))
    apply simp
   apply (metis Un_insert_left append_Cons append_Nil ex_in_conv flts_single1 insertI1 list.simps(15) nonalt_flts_rd nonazero.elims(3) qqq1 rdistinct.simps(2) sup_bot_left)
   apply(subgoal_tac "\<forall>r \<in> set (rflts rs). good r \<and> r \<noteq> RZERO \<and> nonalt r")
-  prefer 2  
-  apply (metis flts3 nonalt_flts_rd qqq1 rdistinct_set_equality)
+   prefer 2
+  apply (metis Diff_empty flts3 nonalt_flts_rd qqq1 rdistinct_set_equality1)  
   apply(subgoal_tac "\<forall>r \<in> set (rflts rsb). good r \<and> r \<noteq> RZERO \<and> nonalt r")
-  prefer 2  
-  apply (metis flts3 nonalt_flts_rd qqq1 rdistinct_set_equality)
+   prefer 2
+  apply (metis Diff_empty flts3 good.simps(1) nonalt_flts_rd rdistinct_set_equality1)  
   by (smt (verit, ccfv_threshold) good_flatten_aux_aux)
 
   
@@ -1162,9 +1162,8 @@ lemma repeated_altssimp:
 
 
 
-lemma alts_closed_form: shows 
-"rsimp (rders_simp (RALTS rs) s) = 
-rsimp (RALTS (map (\<lambda>r. rders_simp r s) rs))"
+lemma alts_closed_form: 
+  shows "rsimp (rders_simp (RALTS rs) s) = rsimp (RALTS (map (\<lambda>r. rders_simp r s) rs))"
   apply(induct s rule: rev_induct)
    apply simp
   apply simp
@@ -1205,9 +1204,9 @@ rsimp (RALTS (map (\<lambda>r. rders_simp r s) rs))"
    apply (metis inside_simp_removal list.map_comp rder.simps(4) rsimp.simps(2) rsimp_idem)
   using simp_der_pierce_flts_prelim by blast
 
-lemma alts_closed_form_variant: shows 
-"s \<noteq> [] \<Longrightarrow> rders_simp (RALTS rs) s = 
-rsimp (RALTS (map (\<lambda>r. rders_simp r s) rs))"
+
+lemma alts_closed_form_variant: 
+  shows "s \<noteq> [] \<Longrightarrow> rders_simp (RALTS rs) s = rsimp (RALTS (map (\<lambda>r. rders_simp r s) rs))"
   by (metis alts_closed_form comp_apply rders_simp_nonempty_simped)
 
 
