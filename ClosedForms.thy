@@ -1,5 +1,5 @@
-theory ClosedForms imports
-"BasicIdentities"
+theory ClosedForms 
+  imports "BasicIdentities"
 begin
 
 lemma flts_middle0:

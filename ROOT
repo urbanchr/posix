@@ -9,7 +9,6 @@ theories[document = false]
      "LexerSimp"
      "Blexer"
      "BlexerSimp"
-     "BlexerSimp2"
      "BasicIdentities"
      "ClosedForms"
      "GeneralRegexBound"

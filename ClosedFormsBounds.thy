@@ -113,8 +113,8 @@ Suc (sum_list (map rsize x5) +
 lemma flts_vs_nflts1:
   assumes "\<forall>r \<in> noalts_set. \<forall>xs. r \<noteq> RALTS xs"
   and "\<forall>a \<in> alts_set. (\<exists>xs. a = RALTS xs \<and> set xs \<subseteq> corr_set)" 
-  shows "sum_list (map rsize (rdistinct ( rflts rs) (noalts_set \<union> corr_set)  ))
-         \<le> sum_list (map rsize (rdistinct rs (insert RZERO (noalts_set \<union> alts_set) )))"
+  shows "sum_list (map rsize (rdistinct (rflts rs) (noalts_set \<union> corr_set)))
+         \<le> sum_list (map rsize (rdistinct rs (insert RZERO (noalts_set \<union> alts_set))))"
   using assms
     apply(induct rs arbitrary: noalts_set alts_set corr_set)
    apply simp
@@ -391,26 +391,27 @@ lemma star_control_bounded:
 lemma star_closed_form_bounded:
   assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
   shows "rsize (rders_simp (RSTAR r) s) \<le> 
-            max ((Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * (Suc (N + rsize (RSTAR r))))) (rsize (RSTAR r))"
-  apply(case_tac s)
-  apply simp
-  apply(subgoal_tac " rsize (rders_simp (RSTAR r) (a # list)) = 
-    rsize (rsimp ( RALTS ( (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r) ) (star_updates list r [[a]])))))") 
-   prefer 2
-  
-  using star_closed_form apply presburger
-  apply(subgoal_tac "rsize (rsimp (
- RALTS ( (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r) ) (star_updates list r [[a]]))))) 
-\<le>         Suc (sum_list (map rsize (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r))
-         (star_updates list r [[a]])) {})))")
-  prefer 2
-  using alts_simp_control apply presburger
-  apply(subgoal_tac "sum_list 
-                 (map rsize
-                   (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r)) (star_updates list r [[a]])) {})) 
-\<le>  (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * Suc (N + rsize (RSTAR r))  ")
-   apply auto[1]
-  using assms star_control_bounded by presburger
+           max ((Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * (Suc (N + rsize (RSTAR r))))) (rsize (RSTAR r))"
+proof(cases s)
+  case Nil
+  then show "rsize (rders_simp (RSTAR r) s)
+    \<le> max (Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * Suc (N + rsize (RSTAR r))) (rsize (RSTAR r))" 
+    by simp
+next
+  case (Cons a list)
+  then have "rsize (rders_simp (RSTAR r) s) = 
+    rsize (rsimp (RALTS ((map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r)) (star_updates list r [[a]])))))"
+    using star_closed_form by fastforce
+  also have "... \<le> Suc (sum_list (map rsize (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r))
+         (star_updates list r [[a]])) {})))"
+    using alts_simp_control by blast 
+  also have "... \<le> Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * (Suc (N + rsize (RSTAR r)))" 
+    using star_control_bounded[OF assms] by (metis add_mono le_add1 mult_Suc plus_1_eq_Suc)
+  also have "... \<le> max (Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * Suc (N + rsize (RSTAR r))) (rsize (RSTAR r))"
+    by simp    
+  finally show ?thesis by simp  
+qed
+
 
 lemma seq_estimate_bounded: 
   assumes "\<forall>s. rsize (rders_simp r1 s) \<le> N1" 

@@ -1,8 +1,54 @@
 
 theory FBound
-  imports "BlexerSimp2" "ClosedFormsBounds"
+  imports "BlexerSimp" "ClosedFormsBounds"
 begin
 
+fun distinctBy :: "'a list \<Rightarrow> ('a \<Rightarrow> 'b) \<Rightarrow> 'b set \<Rightarrow> 'a list"
+  where
+  "distinctBy [] f acc = []"
+| "distinctBy (x#xs) f acc = 
+     (if (f x) \<in> acc then distinctBy xs f acc 
+      else x # (distinctBy xs f ({f x} \<union> acc)))"
+
+fun rerase :: "arexp \<Rightarrow> rrexp"
+where
+  "rerase AZERO = RZERO"
+| "rerase (AONE _) = RONE"
+| "rerase (ACHAR _ c) = RCHAR c"
+| "rerase (AALTs bs rs) = RALTS (map rerase rs)"
+| "rerase (ASEQ _ r1 r2) = RSEQ (rerase r1) (rerase r2)"
+| "rerase (ASTAR _ r) = RSTAR (rerase r)"
+
+lemma eq1_rerase:
+  shows "x ~1 y \<longleftrightarrow> (rerase x) = (rerase y)"
+  apply(induct x y rule: eq1.induct)
+  apply(auto)
+  done
+
+
+lemma distinctBy_distinctWith:
+  shows "distinctBy xs f (f ` acc) = distinctWith xs (\<lambda>x y. f x = f y) acc"
+  apply(induct xs arbitrary: acc)
+  apply(auto)
+  by (metis image_insert)
+
+lemma distinctBy_distinctWith2:
+  shows "distinctBy xs rerase {} = distinctWith xs eq1 {}"
+  apply(subst distinctBy_distinctWith[of _ _ "{}", simplified])
+  using eq1_rerase by presburger
+  
+lemma asize_rsize:
+  shows "rsize (rerase r) = asize r"
+  apply(induct r rule: rerase.induct)
+  apply(auto)
+  apply (metis (mono_tags, lifting) comp_apply map_eq_conv)
+  done
+
+lemma rerase_fuse:
+  shows "rerase (fuse bs r) = rerase r"
+  apply(induct r)
+       apply simp+
+  done
 
 lemma rerase_bsimp_ASEQ:
   shows "rerase (bsimp_ASEQ x1 a1 a2) = rsimp_SEQ (rerase a1) (rerase a2)"
@@ -50,6 +96,20 @@ lemma asize0:
   apply(auto)
   done
 
+lemma rnullable:
+  shows "rnullable (rerase r) = bnullable r"
+  apply(induct r rule: rerase.induct)
+  apply(auto)
+  done
+
+lemma rder_bder_rerase:
+  shows "rder c (rerase r ) = rerase (bder c r)"
+  apply (induct r)
+  apply (auto)
+  using rerase_fuse apply presburger
+  using rnullable apply blast
+  using rnullable by blast
+
 lemma rerase_map_bsimp:
   assumes "\<And> r. r \<in> set rs \<Longrightarrow> rerase (bsimp r) = (rsimp \<circ> rerase) r"
   shows "map rerase (map bsimp rs) =  map (rsimp \<circ> rerase) rs"
@@ -87,7 +147,7 @@ lemma bsimp_rerase:
   apply(induct a rule: bsimp.induct)
   apply(auto)
   using rerase_bsimp_ASEQ apply presburger
-  using rerase_bsimp_AALTs rerase_earlier_later_same by presburger
+  using distinctBy_distinctWith2 rerase_bsimp_AALTs rerase_earlier_later_same by fastforce
 
 lemma rders_simp_size:
   shows "rders_simp (rerase r) s  = rerase (bders_simp r s)"

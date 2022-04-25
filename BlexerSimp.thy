@@ -1,16 +1,33 @@
 theory BlexerSimp
-  imports Blexer
+  imports Blexer 
 begin
 
-
-fun distinctBy :: "'a list \<Rightarrow> ('a \<Rightarrow> 'b) \<Rightarrow> 'b set \<Rightarrow> 'a list"
+fun distinctWith :: "'a list \<Rightarrow> ('a \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> 'a set \<Rightarrow> 'a list"
   where
-  "distinctBy [] f acc = []"
-| "distinctBy (x#xs) f acc = 
-     (if (f x) \<in> acc then distinctBy xs f acc 
-      else x # (distinctBy xs f ({f x} \<union> acc)))"
+  "distinctWith [] eq acc = []"
+| "distinctWith (x # xs) eq acc = 
+     (if (\<exists> y \<in> acc. eq x y) then distinctWith xs eq acc 
+      else x # (distinctWith xs eq ({x} \<union> acc)))"
 
-  
+
+fun eq1 ("_ ~1 _" [80, 80] 80) where  
+  "AZERO ~1 AZERO = True"
+| "(AONE bs1) ~1 (AONE bs2) = True"
+| "(ACHAR bs1 c) ~1 (ACHAR bs2 d) = (if c = d then True else False)"
+| "(ASEQ bs1 ra1 ra2) ~1 (ASEQ bs2 rb1 rb2) = (ra1 ~1 rb1 \<and> ra2 ~1 rb2)"
+| "(AALTs bs1 []) ~1 (AALTs bs2 []) = True"
+| "(AALTs bs1 (r1 # rs1)) ~1 (AALTs bs2 (r2 # rs2)) = (r1 ~1 r2 \<and> (AALTs bs1 rs1) ~1 (AALTs bs2 rs2))"
+| "(ASTAR bs1 r1) ~1 (ASTAR bs2 r2) = r1 ~1 r2"
+| "_ ~1 _ = False"
+
+lemma eq1_L:
+  assumes "x ~1 y"
+  shows "L (erase x) = L (erase y)"
+  using assms
+  apply(induct rule: eq1.induct)
+  apply(auto elim: eq1.elims)
+  apply presburger
+  done
 
 fun flts :: "arexp list \<Rightarrow> arexp list"
   where 
@@ -18,6 +35,7 @@ fun flts :: "arexp list \<Rightarrow> arexp list"
 | "flts (AZERO # rs) = flts rs"
 | "flts ((AALTs bs  rs1) # rs) = (map (fuse bs) rs1) @ flts rs"
 | "flts (r1 # rs) = r1 # flts rs"
+
 
 
 fun bsimp_ASEQ :: "bit list \<Rightarrow> arexp \<Rightarrow> arexp \<Rightarrow> arexp"
@@ -51,10 +69,12 @@ fun bsimp_AALTs :: "bit list \<Rightarrow> arexp list \<Rightarrow> arexp"
 | "bsimp_AALTs bs1 rs = AALTs bs1 rs"
 
 
+
+
 fun bsimp :: "arexp \<Rightarrow> arexp" 
   where
   "bsimp (ASEQ bs1 r1 r2) = bsimp_ASEQ bs1 (bsimp r1) (bsimp r2)"
-| "bsimp (AALTs bs1 rs) = bsimp_AALTs bs1 (distinctBy (flts (map bsimp rs)) erase {}) "
+| "bsimp (AALTs bs1 rs) = bsimp_AALTs bs1 (distinctWith (flts (map bsimp rs)) eq1 {}) "
 | "bsimp r = r"
 
 
@@ -76,12 +96,10 @@ lemma bders_simp_append:
   apply(simp_all)
   done
 
-
 lemma bmkeps_fuse:
   assumes "bnullable r"
   shows "bmkeps (fuse bs r) = bs @ bmkeps r"
-  using assms
-  by (metis bmkeps_retrieve bnullable_correctness erase_fuse mkeps_nullable retrieve_fuse2)
+  by (metis assms bmkeps_retrieve bnullable_correctness erase_fuse mkeps_nullable retrieve_fuse2)
 
 lemma bmkepss_fuse: 
   assumes "bnullables rs"
@@ -112,12 +130,14 @@ where
 | bs5: "r3 \<leadsto> r4 \<Longrightarrow> ASEQ bs r1 r3 \<leadsto> ASEQ bs r1 r4"
 | bs6: "AALTs bs [] \<leadsto> AZERO"
 | bs7: "AALTs bs [r] \<leadsto> fuse bs r"
-| bs8: "rs1 s\<leadsto> rs2 \<Longrightarrow> AALTs bs rs1 \<leadsto> AALTs bs rs2"
+| bs10: "rs1 s\<leadsto> rs2 \<Longrightarrow> AALTs bs rs1 \<leadsto> AALTs bs rs2"
+| ss1:  "[] s\<leadsto> []"
 | ss2:  "rs1 s\<leadsto> rs2 \<Longrightarrow> (r # rs1) s\<leadsto> (r # rs2)"
 | ss3:  "r1 \<leadsto> r2 \<Longrightarrow> (r1 # rs) s\<leadsto> (r2 # rs)"
 | ss4:  "(AZERO # rs) s\<leadsto> rs"
 | ss5:  "(AALTs bs1 rs1 # rsb) s\<leadsto> ((map (fuse bs1) rs1) @ rsb)"
-| ss6:  "L(erase a2) \<subseteq> L(erase a1) \<Longrightarrow> (rsa@[a1]@rsb@[a2]@rsc) s\<leadsto> (rsa@[a1]@rsb@rsc)"
+| ss6:  "L (erase a2) \<subseteq> L (erase a1) \<Longrightarrow> (rsa@[a1]@rsb@[a2]@rsc) s\<leadsto> (rsa@[a1]@rsb@rsc)"
+
 
 inductive 
   rrewrites:: "arexp \<Rightarrow> arexp \<Rightarrow> bool" ("_ \<leadsto>* _" [100, 100] 100)
@@ -132,13 +152,13 @@ where
 | sss2[intro]: "\<lbrakk>rs1 s\<leadsto> rs2; rs2 s\<leadsto>* rs3\<rbrakk> \<Longrightarrow> rs1 s\<leadsto>* rs3"
 
 
-lemma r_in_rstar: 
-  shows "r1 \<leadsto> r2 \<Longrightarrow> r1 \<leadsto>* r2"
+lemma r_in_rstar : "r1 \<leadsto> r2 \<Longrightarrow> r1 \<leadsto>* r2"
   using rrewrites.intros(1) rrewrites.intros(2) by blast
 
 lemma rs_in_rstar: 
   shows "r1 s\<leadsto> r2 \<Longrightarrow> r1 s\<leadsto>* r2"
   using rrewrites.intros(1) rrewrites.intros(2) by blast
+
 
 lemma rrewrites_trans[trans]: 
   assumes a1: "r1 \<leadsto>* r2"  and a2: "r2 \<leadsto>* r3"
@@ -162,13 +182,13 @@ lemma contextrewrites0:
   "rs1 s\<leadsto>* rs2 \<Longrightarrow> AALTs bs rs1 \<leadsto>* AALTs bs rs2"
   apply(induct rs1 rs2 rule: srewrites.inducts)
    apply simp
-  using bs8 r_in_rstar rrewrites_trans by blast
+  using bs10 r_in_rstar rrewrites_trans by blast
 
 lemma contextrewrites1: 
   "r \<leadsto>* r' \<Longrightarrow> AALTs bs (r # rs) \<leadsto>* AALTs bs (r' # rs)"
   apply(induct r r' rule: rrewrites.induct)
    apply simp
-  using bs8 ss3 by blast
+  using bs10 ss3 by blast
 
 lemma srewrite1: 
   shows "rs1 s\<leadsto> rs2 \<Longrightarrow> (rs @ rs1) s\<leadsto> (rs @ rs2)"
@@ -190,7 +210,7 @@ lemma srewrite2:
   apply (metis append_Cons append_Nil srewrites1)
   apply(meson srewrites.simps ss3)
   apply (meson srewrites.simps ss4)
-  apply (meson srewrites.simps ss5)
+   apply (meson srewrites.simps ss5)
   by (metis append_Cons append_Nil srewrites.simps ss6)
   
 
@@ -200,85 +220,89 @@ lemma srewrites3:
    apply(auto)
   by (meson srewrite2(2) srewrites_trans)
 
+(*
+lemma srewrites4:
+  assumes "rs3 s\<leadsto>* rs4" "rs1 s\<leadsto>* rs2" 
+  shows "(rs1 @ rs3) s\<leadsto>* (rs2 @ rs4)"
+  using assms
+  apply(induct rs3 rs4 arbitrary: rs1 rs2 rule: srewrites.induct)
+  apply (simp add: srewrites3)
+  using srewrite1 by blast
+*)
 
 lemma srewrites6:
   assumes "r1 \<leadsto>* r2" 
   shows "[r1] s\<leadsto>* [r2]"
   using assms
   apply(induct r1 r2 rule: rrewrites.induct)
-  apply(auto)
+   apply(auto)
   by (meson srewrites.simps srewrites_trans ss3)
 
 lemma srewrites7:
   assumes "rs3 s\<leadsto>* rs4" "r1 \<leadsto>* r2" 
   shows "(r1 # rs3) s\<leadsto>* (r2 # rs4)"
   using assms
-  by (smt (verit, del_insts) append.simps srewrites1 srewrites3 srewrites6 srewrites_trans)
-  
+  by (smt (verit, best) append_Cons append_Nil srewrites1 srewrites3 srewrites6 srewrites_trans)
+
 lemma ss6_stronger_aux:
-  shows "(rs1 @ rs2) s\<leadsto>* (rs1 @ distinctBy rs2 erase (set (map erase rs1)))"
+  shows "(rs1 @ rs2) s\<leadsto>* (rs1 @ distinctWith rs2 eq1 (set rs1))"
   apply(induct rs2 arbitrary: rs1)
-   apply(auto)
+  apply(auto)
   prefer 2
   apply(drule_tac x="rs1 @ [a]" in meta_spec)
-   apply(simp)
+  apply(simp)
   apply(drule_tac x="rs1" in meta_spec)
   apply(subgoal_tac "(rs1 @ a # rs2) s\<leadsto>* (rs1 @ rs2)")
   using srewrites_trans apply blast
-   apply(subgoal_tac "\<exists>rs1a rs1b. rs1 = rs1a @ [x] @ rs1b")
-    prefer 2
+  apply(subgoal_tac "\<exists>rs1a rs1b. rs1 = rs1a @ [x] @ rs1b")
+  prefer 2
   apply (simp add: split_list)
   apply(erule exE)+
   apply(simp)
-  using ss6[simplified]
-  using rs_in_rstar by force
+  using eq1_L rs_in_rstar ss6 by force
 
 lemma ss6_stronger:
-  shows "rs s\<leadsto>* distinctBy rs erase {}"
-  using ss6_stronger_aux[of "[]" _] by auto
+  shows "rs1 s\<leadsto>* distinctWith rs1 eq1 {}"
+  by (metis append_Nil list.set(1) ss6_stronger_aux)
+
 
 lemma rewrite_preserves_fuse: 
   shows "r2 \<leadsto> r3 \<Longrightarrow> fuse bs r2 \<leadsto> fuse bs r3"
-  and   "rs2 s\<leadsto> rs3 \<Longrightarrow> map (fuse bs) rs2 s\<leadsto> map (fuse bs) rs3"
+  and   "rs2 s\<leadsto> rs3 \<Longrightarrow> map (fuse bs) rs2 s\<leadsto>* map (fuse bs) rs3"
 proof(induct rule: rrewrite_srewrite.inducts)
   case (bs3 bs1 bs2 r)
-  then show "fuse bs (ASEQ bs1 (AONE bs2) r) \<leadsto> fuse bs (fuse (bs1 @ bs2) r)"
+  then show ?case
     by (metis fuse.simps(5) fuse_append rrewrite_srewrite.bs3) 
 next
-  case (bs7 bs1 r)
-  then show "fuse bs (AALTs bs1 [r]) \<leadsto> fuse bs (fuse bs1 r)"
+  case (bs7 bs r)
+  then show ?case
     by (metis fuse.simps(4) fuse_append rrewrite_srewrite.bs7) 
 next
   case (ss2 rs1 rs2 r)
-  then show "map (fuse bs) (r # rs1) s\<leadsto> map (fuse bs) (r # rs2)"
-    by (simp add: rrewrite_srewrite.ss2)
+  then show ?case
+    using srewrites7 by force 
 next
   case (ss3 r1 r2 rs)
-  then show "map (fuse bs) (r1 # rs) s\<leadsto> map (fuse bs) (r2 # rs)"
-    by (simp add: rrewrite_srewrite.ss3)
+  then show ?case by (simp add: r_in_rstar srewrites7)
 next
   case (ss5 bs1 rs1 rsb)
-  have "map (fuse bs) (AALTs bs1 rs1 # rsb) = AALTs (bs @ bs1) rs1 # (map (fuse bs) rsb)" by simp
-  also have "... s\<leadsto> ((map (fuse (bs @ bs1)) rs1) @ (map (fuse bs) rsb))"
-    by (simp add: rrewrite_srewrite.ss5)  
-  finally show "map (fuse bs) (AALTs bs1 rs1 # rsb) s\<leadsto> map (fuse bs) (map (fuse bs1) rs1 @ rsb)"
-    by (simp add: comp_def fuse_append)
-next
-  case (ss6 a2 a1 rsa rsb rsc)
-  have "L (erase a2) \<subseteq> L (erase a1)" by fact
-  then show "map (fuse bs) (rsa @ [a1] @ rsb @ [a2] @ rsc) s\<leadsto> map (fuse bs) (rsa @ [a1] @ rsb @ rsc)"
+  then show ?case 
     apply(simp)
-    apply(rule rrewrite_srewrite.ss6[simplified])
-    apply(simp add: erase_fuse)
-    done
+    by (metis (mono_tags, lifting) comp_def fuse_append map_eq_conv rrewrite_srewrite.ss5 srewrites.simps)
+next
+  case (ss6 a1 a2 rsa rsb rsc)
+  then show ?case 
+    apply(simp only: map_append)
+    by (smt (verit, best) erase_fuse list.simps(8) list.simps(9) rrewrite_srewrite.ss6 srewrites.simps)
 qed (auto intro: rrewrite_srewrite.intros)
+
 
 lemma rewrites_fuse:  
   assumes "r1 \<leadsto>* r2"
   shows "fuse bs r1 \<leadsto>* fuse bs r2"
 using assms
 apply(induction r1 r2 arbitrary: bs rule: rrewrites.induct)
-apply(auto intro: rewrite_preserves_fuse)
+apply(auto intro: rewrite_preserves_fuse rrewrites_trans)
 done
 
 
@@ -303,6 +327,13 @@ lemma continuous_rewrite:
   shows "ASEQ bs1 r1 r2 \<leadsto>* AZERO"
 using assms bs1 star_seq by blast
 
+(*
+lemma continuous_rewrite2: 
+  assumes "r1 \<leadsto>* AONE bs"
+  shows "ASEQ bs1 r1 r2 \<leadsto>* (fuse (bs1 @ bs) r2)"
+  using assms  by (meson bs3 rrewrites.simps star_seq)
+*)
+
 lemma bsimp_aalts_simpcases: 
   shows "AONE bs \<leadsto>* bsimp (AONE bs)"  
   and   "AZERO \<leadsto>* bsimp AZERO" 
@@ -314,12 +345,13 @@ lemma bsimp_AALTs_rewrites:
   by (smt (verit) bs6 bs7 bsimp_AALTs.elims rrewrites.simps)
 
 lemma trivialbsimp_srewrites: 
-  assumes "\<And>x. x \<in> set rs \<Longrightarrow> x \<leadsto>* f x"
-  shows "rs s\<leadsto>* (map f rs)"
-using assms
+  "\<lbrakk>\<And>x. x \<in> set rs \<Longrightarrow> x \<leadsto>* f x \<rbrakk> \<Longrightarrow> rs s\<leadsto>* (map f rs)"
   apply(induction rs)
-  apply(simp_all add: srewrites7)
-  done
+   apply simp
+  apply(simp)
+  using srewrites7 by auto
+
+
 
 lemma fltsfrewrites: "rs s\<leadsto>* flts rs"
   apply(induction rs rule: flts.induct)
@@ -336,11 +368,10 @@ shows "r1 \<leadsto> r2 \<Longrightarrow> bnullable r1 = bnullable r2"
   apply(induct rule: rrewrite_srewrite.inducts)
   apply(auto simp add:  bnullable_fuse)
    apply (meson UnCI bnullable_fuse imageI)
-  
-  using bnullable_correctness nullable_correctness by blast
+  using bnullable_correctness nullable_correctness by blast 
 
 
-lemma rewrites_bnullable_eq: 
+lemma rewritesnullable: 
   assumes "r1 \<leadsto>* r2" 
   shows "bnullable r1 = bnullable r2"
 using assms 
@@ -349,35 +380,26 @@ using assms
   using bnullable0(1) by auto
 
 lemma rewrite_bmkeps_aux: 
-  shows "r1 \<leadsto> r2 \<Longrightarrow> bnullable r1 \<Longrightarrow> bmkeps r1 = bmkeps r2"
-  and   "rs1 s\<leadsto> rs2 \<Longrightarrow> bnullables rs1 \<Longrightarrow> bmkepss rs1 = bmkepss rs2" 
+  shows "r1 \<leadsto> r2 \<Longrightarrow> (bnullable r1 \<and> bnullable r2 \<Longrightarrow> bmkeps r1 = bmkeps r2)"
+  and   "rs1 s\<leadsto> rs2 \<Longrightarrow> (bnullables rs1 \<and> bnullables rs2 \<Longrightarrow> bmkepss rs1 = bmkepss rs2)" 
 proof (induct rule: rrewrite_srewrite.inducts)
   case (bs3 bs1 bs2 r)
-  have IH2: "bnullable (ASEQ bs1 (AONE bs2) r)" by fact
-  then show "bmkeps (ASEQ bs1 (AONE bs2) r) = bmkeps (fuse (bs1 @ bs2) r)"
-    by (simp add: bmkeps_fuse)
+  then show ?case by (simp add: bmkeps_fuse) 
 next
   case (bs7 bs r)
-  have IH2: "bnullable (AALTs bs [r])" by fact
-  then show "bmkeps (AALTs bs [r]) = bmkeps (fuse bs r)" 
-    by (simp add: bmkeps_fuse)
+  then show ?case by (simp add: bmkeps_fuse) 
 next
   case (ss3 r1 r2 rs)
-  have IH1: "bnullable r1 \<Longrightarrow> bmkeps r1 = bmkeps r2" by fact
-  have as: "r1 \<leadsto> r2" by fact
-  from IH1 as show "bmkepss (r1 # rs) = bmkepss (r2 # rs)"
-    by (simp add: bnullable0)
+  then show ?case
+    using bmkepss.simps bnullable0(1) by presburger
 next
   case (ss5 bs1 rs1 rsb)
-  have "bnullables (AALTs bs1 rs1 # rsb)" by fact
-  then show "bmkepss (AALTs bs1 rs1 # rsb) = bmkepss (map (fuse bs1) rs1 @ rsb)"
+  then show ?case
     by (simp add: bmkepss1 bmkepss2 bmkepss_fuse bnullable_fuse)
 next
-  case (ss6 a2 a1 rsa rsb rsc)
-  have as1: "L(erase a2) \<subseteq> L(erase a1)" by fact
-  have as3: "bnullables (rsa @ [a1] @ rsb @ [a2] @ rsc)" by fact
-  show "bmkepss (rsa @ [a1] @ rsb @ [a2] @ rsc) = bmkepss (rsa @ [a1] @ rsb @ rsc)" using as1 as3
-    by (smt (verit, ccfv_SIG) append_Cons bmkepss.simps(1) bmkepss1 bmkepss2 bnullable_correctness nullable_correctness subset_eq)
+  case (ss6 a1 a2 rsa rsb rsc)
+  then show ?case
+    by (smt (verit, best) Nil_is_append_conv bmkepss1 bmkepss2 bnullable_correctness in_set_conv_decomp list.distinct(1) list.set_intros(1) nullable_correctness set_ConsD subsetD)
 qed (auto)
 
 lemma rewrites_bmkeps: 
@@ -393,7 +415,7 @@ next
   have a1: "bnullable r1" by fact
   have a2: "r1 \<leadsto>* r2" by fact
   have a3: "r2 \<leadsto> r3" by fact
-  have a4: "bnullable r2" using a1 a2 by (simp add: rewrites_bnullable_eq) 
+  have a4: "bnullable r2" using a1 a2 by (simp add: rewritesnullable) 
   then have "bmkeps r2 = bmkeps r3"
     using a3 bnullable0(1) rewrite_bmkeps_aux(1) by blast 
   then show "bmkeps r1 = bmkeps r3" using IH by simp
@@ -436,10 +458,10 @@ next
   have IH: "\<And>x. x \<in> set rs \<Longrightarrow> x \<leadsto>* bsimp x" by fact
   then have "rs s\<leadsto>* (map bsimp rs)" by (simp add: trivialbsimp_srewrites)
   also have "... s\<leadsto>* flts (map bsimp rs)" by (simp add: fltsfrewrites) 
-  also have "... s\<leadsto>* distinctBy (flts (map bsimp rs)) erase {}" by (simp add: ss6_stronger) 
-  finally have "AALTs bs1 rs \<leadsto>* AALTs bs1 (distinctBy (flts (map bsimp rs)) erase {})"
-    using contextrewrites0 by blast
-  also have "... \<leadsto>* bsimp_AALTs  bs1 (distinctBy (flts (map bsimp rs)) erase {})"
+  also have "... s\<leadsto>* distinctWith (flts (map bsimp rs)) eq1 {}" by (simp add: ss6_stronger)
+  finally have "AALTs bs1 rs \<leadsto>* AALTs bs1 (distinctWith (flts (map bsimp rs)) eq1 {})"
+    using contextrewrites0 by auto
+  also have "... \<leadsto>* bsimp_AALTs  bs1 (distinctWith (flts (map bsimp rs)) eq1 {})"
     by (simp add: bsimp_AALTs_rewrites)     
   finally show "AALTs bs1 rs \<leadsto>* bsimp (AALTs bs1 rs)" by simp
 qed (simp_all)
@@ -447,7 +469,7 @@ qed (simp_all)
 
 lemma to_zero_in_alt: 
   shows "AALT bs (ASEQ [] AZERO r) r2 \<leadsto> AALT bs AZERO r2"
-  by (simp add: bs1 bs8 ss3)
+  by (simp add: bs1 bs10 ss3)
 
 
 
@@ -457,29 +479,29 @@ lemma  bder_fuse_list:
   apply(simp_all add: bder_fuse)
   done
 
-lemma map_single:
-  shows "map f [x] = [f x]"
-  by simp
-
+lemma map1:
+  shows "(map f [a]) = [f a]"
+  by (simp)
 
 lemma rewrite_preserves_bder: 
-  shows "r1 \<leadsto> r2 \<Longrightarrow> bder c r1 \<leadsto>* bder c r2"
+  shows "r1 \<leadsto> r2 \<Longrightarrow> (bder c r1) \<leadsto>* (bder c r2)"
   and   "rs1 s\<leadsto> rs2 \<Longrightarrow> map (bder c) rs1 s\<leadsto>* map (bder c) rs2"
 proof(induction rule: rrewrite_srewrite.inducts)
   case (bs1 bs r2)
-  show "bder c (ASEQ bs AZERO r2) \<leadsto>* bder c AZERO"
+  then show ?case
     by (simp add: continuous_rewrite) 
 next
   case (bs2 bs r1)
-  show "bder c (ASEQ bs r1 AZERO) \<leadsto>* bder c AZERO"
+  then show ?case 
     apply(auto)
     apply (meson bs6 contextrewrites0 rrewrite_srewrite.bs2 rs2 ss3 ss4 sss1 sss2)
     by (simp add: r_in_rstar rrewrite_srewrite.bs2)
 next
   case (bs3 bs1 bs2 r)
-  show "bder c (ASEQ bs1 (AONE bs2) r) \<leadsto>* bder c (fuse (bs1 @ bs2) r)"
+  then show ?case 
     apply(simp)
-    by (metis (no_types, lifting) bder_fuse bs8 bs7 fuse_append rrewrites.simps ss4 to_zero_in_alt)
+    
+    by (metis (no_types, lifting) bder_fuse bs10 bs7 fuse_append rrewrites.simps ss4 to_zero_in_alt)
 next
   case (bs4 r1 r2 bs r3)
   have as: "r1 \<leadsto> r2" by fact
@@ -497,51 +519,46 @@ next
     using star_seq2 by blast
 next
   case (bs6 bs)
-  show "bder c (AALTs bs []) \<leadsto>* bder c AZERO"
+  then show ?case
     using rrewrite_srewrite.bs6 by force 
 next
   case (bs7 bs r)
-  show "bder c (AALTs bs [r]) \<leadsto>* bder c (fuse bs r)"
+  then show ?case
     by (simp add: bder_fuse r_in_rstar rrewrite_srewrite.bs7) 
 next
-  case (bs8 rs1 rs2 bs)
-  have IH1: "map (bder c) rs1 s\<leadsto>* map (bder c) rs2" by fact
-  then show "bder c (AALTs bs rs1) \<leadsto>* bder c (AALTs bs rs2)" 
+  case (bs10 rs1 rs2 bs)
+  then show ?case
     using contextrewrites0 by force    
 next
+  case ss1
+  then show ?case by simp
+next
   case (ss2 rs1 rs2 r)
-  have IH1: "map (bder c) rs1 s\<leadsto>* map (bder c) rs2" by fact
-  then show "map (bder c) (r # rs1) s\<leadsto>* map (bder c) (r # rs2)"
+  then show ?case
     by (simp add: srewrites7) 
 next
   case (ss3 r1 r2 rs)
-  have IH: "bder c r1 \<leadsto>* bder c r2" by fact
-  then show "map (bder c) (r1 # rs) s\<leadsto>* map (bder c) (r2 # rs)"
+  then show ?case
     by (simp add: srewrites7) 
 next
   case (ss4 rs)
-  show "map (bder c) (AZERO # rs) s\<leadsto>* map (bder c) rs"
+  then show ?case
     using rrewrite_srewrite.ss4 by fastforce 
 next
   case (ss5 bs1 rs1 rsb)
-  show "map (bder c) (AALTs bs1 rs1 # rsb) s\<leadsto>* map (bder c) (map (fuse bs1) rs1 @ rsb)"
+  then show ?case 
     apply(simp)
     using bder_fuse_list map_map rrewrite_srewrite.ss5 srewrites.simps by blast
 next
-  case (ss6 a2 a1 bs rsa rsb)
-  have as: "L(erase a2) \<subseteq> L(erase a1)" by fact
-  show "map (bder c) (bs @ [a1] @ rsa @ [a2] @ rsb) s\<leadsto>* map (bder c) (bs @ [a1] @ rsa @ rsb)"
-    apply(simp only: map_append)
-    apply(simp only: map_single)
+  case (ss6 a1 a2 bs rsa rsb)
+  then show ?case
+    apply(simp only: map_append map1)
+    apply(rule srewrites_trans)
     apply(rule rs_in_rstar)
-    thm rrewrite_srewrite.intros
-    apply(rule rrewrite_srewrite.ss6)
-    using as
-    apply(auto simp add: der_correctness Der_def)
-    done 
+    apply(rule_tac rrewrite_srewrite.ss6)
+    using Der_def der_correctness apply auto[1]
+    by blast
 qed
-
-
 
 lemma rewrites_preserves_bder: 
   assumes "r1 \<leadsto>* r2"
@@ -549,7 +566,7 @@ lemma rewrites_preserves_bder:
 using assms  
 apply(induction r1 r2 rule: rrewrites.induct)
 apply(simp_all add: rewrite_preserves_bder rrewrites_trans)
-  done
+done
 
 
 lemma central:  
@@ -580,19 +597,18 @@ proof -
 qed  
 
 
+
+
 theorem main_blexer_simp: 
   shows "blexer r s = blexer_simp r s"
   unfolding blexer_def blexer_simp_def
-  by (metis central main_aux rewrites_bnullable_eq)
-
+  by (metis central main_aux rewritesnullable)
 
 theorem blexersimp_correctness: 
   shows "lexer r s = blexer_simp r s"
   using blexer_correctness main_blexer_simp by simp
 
 
-
 unused_thms
-
 
 end
