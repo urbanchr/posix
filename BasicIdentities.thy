@@ -1,5 +1,5 @@
 theory BasicIdentities 
-  imports "Lexer" "PDerivs"
+  imports "Lexer" 
 begin
 
 datatype rrexp = 

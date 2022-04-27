@@ -20,6 +20,8 @@ fun eq1 ("_ ~1 _" [80, 80] 80) where
 | "(ASTAR bs1 r1) ~1 (ASTAR bs2 r2) = r1 ~1 r2"
 | "_ ~1 _ = False"
 
+
+
 lemma eq1_L:
   assumes "x ~1 y"
   shows "L (erase x) = L (erase y)"
@@ -99,7 +101,8 @@ lemma bders_simp_append:
 lemma bmkeps_fuse:
   assumes "bnullable r"
   shows "bmkeps (fuse bs r) = bs @ bmkeps r"
-  by (metis assms bmkeps_retrieve bnullable_correctness erase_fuse mkeps_nullable retrieve_fuse2)
+  using assms
+  by (induct r rule: bnullable.induct) (auto)
 
 lemma bmkepss_fuse: 
   assumes "bnullables rs"
@@ -210,7 +213,7 @@ lemma srewrite2:
   apply (metis append_Cons append_Nil srewrites1)
   apply(meson srewrites.simps ss3)
   apply (meson srewrites.simps ss4)
-   apply (meson srewrites.simps ss5)
+  apply (meson srewrites.simps ss5)
   by (metis append_Cons append_Nil srewrites.simps ss6)
   
 
