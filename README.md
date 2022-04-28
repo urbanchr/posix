@@ -22,3 +22,5 @@ Tested with Isabelle2021-1.
 * Blexer.thy (second algorithm by Sulzmann & Lu without simplification)
 
 * BlexerSimp.thy (correctness for aggressive simplification rules)
+
+* Finite Bound Result: BasicIdentidies.thy, ClosedForms.thy, GeneralRegexBound, ClosedFormBounds.thy (Section 5 in the paper)
