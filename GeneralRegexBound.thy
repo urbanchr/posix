@@ -13,10 +13,10 @@ definition RSEQ_set_cartesian where
   "RSEQ_set_cartesian A  = {RSEQ r1 r2 | r1 r2. r1 \<in> A \<and> r2 \<in> A}"
 
 definition RALT_set where
-  "RALT_set A n \<equiv> {RALTS rs | rs. set rs \<subseteq> A \<and> sum_list (map rsize rs) \<le> n}"
+  "RALT_set A n \<equiv> {RALTS rs | rs. set rs \<subseteq> A \<and> rsizes rs \<le> n}"
 
 definition RALTs_set where
-  "RALTs_set A n \<equiv> {RALTS rs | rs. \<forall>r \<in> set rs. r \<in> A \<and> sum_list (map rsize rs) \<le> n}"
+  "RALTs_set A n \<equiv> {RALTS rs | rs. \<forall>r \<in> set rs. r \<in> A \<and> rsizes rs \<le> n}"
 
 definition
   "sizeNregex N \<equiv> {r. rsize r \<le> N}"
@@ -64,9 +64,7 @@ lemma s5:
 
 definition RALTs_set_length
   where
-  "RALTs_set_length A n l \<equiv> {RALTS rs | rs. \<forall>r \<in> set rs. r \<in> A 
-                                      \<and> sum_list (map rsize rs) \<le> n 
-                                      \<and> length rs \<le> l}"
+  "RALTs_set_length A n l \<equiv> {RALTS rs | rs. \<forall>r \<in> set rs. r \<in> A \<and> rsizes rs \<le> n \<and> length rs \<le> l}"
 
 
 definition RALTs_set_length2
@@ -113,7 +111,7 @@ lemma r1:
   done
 
 lemma size_sum_more_than_len:
-  shows "sum_list (map rsize rs) \<ge> length rs"
+  shows "rsizes rs \<ge> length rs"
   apply(induct rs)
    apply simp
   apply simp
@@ -123,7 +121,7 @@ lemma size_sum_more_than_len:
 
 
 lemma sum_list_len:
-  shows " sum_list (map rsize rs) \<le> n \<Longrightarrow> length rs \<le> n"
+  shows "rsizes rs \<le> n \<Longrightarrow> length rs \<le> n"
   by (meson order.trans size_sum_more_than_len)
 
 

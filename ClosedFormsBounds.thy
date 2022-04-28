@@ -8,7 +8,7 @@ lemma alts_ders_lambda_shape_ders:
 
 lemma rlist_bound:
   assumes "\<forall>r \<in> set rs. rsize r \<le> N"
-  shows "sum_list (map rsize rs) \<le> N * (length rs)"
+  shows "rsizes rs \<le> N * (length rs)"
   using assms
   apply(induct rs)
   apply simp
@@ -26,7 +26,7 @@ next
   
   from assms have "\<forall>r \<in> set (map (\<lambda>r. rders_simp r (a # s)) rs ). rsize r \<le> N"
     by (metis alts_ders_lambda_shape_ders)
-  then have a: "sum_list (map rsize (map (\<lambda>r. rders_simp r (a # s)) rs )) \<le> N *  (length rs)"
+  then have a: "rsizes (map (\<lambda>r. rders_simp r (a # s)) rs ) \<le> N *  (length rs)"
     by (metis length_map rlist_bound) 
      
   have "rsize (rders_simp (RALTS rs) (a # s)) 
@@ -34,7 +34,7 @@ next
     by (metis alts_closed_form_variant list.distinct(1)) 
   also have "... \<le> rsize (RALTS (map (\<lambda>r. rders_simp r (a # s)) rs))"
     using rsimp_mono by blast
-  also have "... = Suc (sum_list  (map rsize (map (\<lambda>r. rders_simp r (a # s)) rs)))"
+  also have "... = Suc (rsizes (map (\<lambda>r. rders_simp r (a # s)) rs))"
     by simp
   also have "... \<le> Suc (N * (length rs))"
     using a by blast
@@ -44,13 +44,12 @@ next
 qed
 
 lemma alts_simp_ineq_unfold:
-  shows "rsize (rsimp (RALTS rs)) \<le> Suc (sum_list (map rsize (rdistinct (rflts (map rsimp rs)) {})))"
+  shows "rsize (rsimp (RALTS rs)) \<le> Suc (rsizes (rdistinct (rflts (map rsimp rs)) {}))"
   using rsimp_aalts_smaller by auto
 
 
 lemma rdistinct_mono_list:
-  shows "sum_list (map rsize (rdistinct (x5 @ rs) rset )) \<le>
-         sum_list (map rsize x5) + sum_list (map rsize (rdistinct  rs ((set x5 ) \<union> rset)))"
+  shows "rsizes (rdistinct (x5 @ rs) rset) \<le> rsizes x5 + rsizes (rdistinct  rs ((set x5 ) \<union> rset))"
   apply(induct x5 arbitrary: rs rset)
    apply simp
   apply(case_tac "a \<in> rset")
@@ -64,13 +63,13 @@ lemma flts_size_reduction_alts:
   assumes a: "\<And>noalts_set alts_set corr_set.
            (\<forall>r\<in>noalts_set. \<forall>xs. r \<noteq> RALTS xs) \<and>
            (\<forall>a\<in>alts_set. \<exists>xs. a = RALTS xs \<and> set xs \<subseteq> corr_set) \<Longrightarrow>
-           Suc (sum_list (map rsize (rdistinct (rflts rs) (noalts_set \<union> corr_set))))
-           \<le> Suc (sum_list (map rsize (rdistinct rs (insert RZERO (noalts_set \<union> alts_set)))))"
+           Suc (rsizes (rdistinct (rflts rs) (noalts_set \<union> corr_set)))
+           \<le> Suc (rsizes (rdistinct rs (insert RZERO (noalts_set \<union> alts_set))))"
  and b: "\<forall>r\<in>noalts_set. \<forall>xs. r \<noteq> RALTS xs"
  and c: "\<forall>a\<in>alts_set. \<exists>xs. a = RALTS xs \<and> set xs \<subseteq> corr_set"
  and d: "a = RALTS x5"
- shows "sum_list (map rsize (rdistinct (rflts (a # rs)) (noalts_set \<union> corr_set)))
-           \<le> sum_list (map rsize (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set))))"
+ shows "rsizes (rdistinct (rflts (a # rs)) (noalts_set \<union> corr_set))
+           \<le> rsizes (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set)))"
   
   apply(case_tac "a \<in> alts_set")
   using a b c d
@@ -85,26 +84,20 @@ lemma flts_size_reduction_alts:
   prefer 2
   apply blast
   apply simp
-  apply(subgoal_tac "sum_list (map rsize (rdistinct (x5 @ rflts rs) (noalts_set \<union> corr_set))) 
-                   \<le> sum_list (map rsize x5 ) + sum_list (map rsize (rdistinct (rflts rs) ((set x5) \<union> (noalts_set \<union> corr_set))))")
+  apply(subgoal_tac "rsizes (rdistinct (x5 @ rflts rs) (noalts_set \<union> corr_set)) 
+                   \<le> rsizes x5 + rsizes (rdistinct (rflts rs) ((set x5) \<union> (noalts_set \<union> corr_set)))")
   prefer 2
   using rdistinct_mono_list apply presburger
   apply(subgoal_tac "insert (RALTS x5) (noalts_set \<union> alts_set) = noalts_set \<union> (insert (RALTS x5) alts_set)")
    apply(simp only:)
-  apply(subgoal_tac "sum_list (map rsize x5) + 
-sum_list (map rsize (rdistinct (rflts rs) (noalts_set \<union> (corr_set \<union> (set x5))))) \<le>
-Suc (sum_list (map rsize x5) +
-                   sum_list
-                    (map rsize
-                      (rdistinct rs (insert RZERO (noalts_set \<union> insert (RALTS x5) alts_set)))))")
+  apply(subgoal_tac "rsizes x5 + rsizes (rdistinct (rflts rs) (noalts_set \<union> (corr_set \<union> (set x5)))) \<le>
+           rsizes x5 + rsizes (rdistinct rs (insert RZERO (noalts_set \<union> insert (RALTS x5) alts_set)))")
   
   apply (simp add: Un_left_commute inf_sup_aci(5))
-   apply(subgoal_tac "sum_list (map rsize (rdistinct (rflts rs) (noalts_set \<union> (corr_set \<union> set x5))))
-\<le> sum_list
-                    (map rsize
-                      (rdistinct rs (insert RZERO (noalts_set \<union> insert (RALTS x5) alts_set))))")
+   apply(subgoal_tac "rsizes (rdistinct (rflts rs) (noalts_set \<union> (corr_set \<union> set x5))) \<le> 
+                    rsizes (rdistinct rs (insert RZERO (noalts_set \<union> insert (RALTS x5) alts_set)))")
     apply linarith
-   apply(subgoal_tac "\<forall>r \<in>  insert (RALTS x5) alts_set. \<exists>xs1.( r = RALTS xs1 \<and> set xs1 \<subseteq> corr_set \<union> set x5)")
+   apply(subgoal_tac "\<forall>r \<in> insert (RALTS x5) alts_set. \<exists>xs1.( r = RALTS xs1 \<and> set xs1 \<subseteq> corr_set \<union> set x5)")
     apply presburger
    apply (meson insert_iff sup.cobounded2 sup.coboundedI1)
   by blast
@@ -113,8 +106,8 @@ Suc (sum_list (map rsize x5) +
 lemma flts_vs_nflts1:
   assumes "\<forall>r \<in> noalts_set. \<forall>xs. r \<noteq> RALTS xs"
   and "\<forall>a \<in> alts_set. (\<exists>xs. a = RALTS xs \<and> set xs \<subseteq> corr_set)" 
-  shows "sum_list (map rsize (rdistinct (rflts rs) (noalts_set \<union> corr_set)))
-         \<le> sum_list (map rsize (rdistinct rs (insert RZERO (noalts_set \<union> alts_set))))"
+  shows "rsizes (rdistinct (rflts rs) (noalts_set \<union> corr_set))
+         \<le> rsizes (rdistinct rs (insert RZERO (noalts_set \<union> alts_set)))"
   using assms
     apply(induct rs arbitrary: noalts_set alts_set corr_set)
    apply simp
@@ -146,10 +139,8 @@ lemma flts_vs_nflts1:
   apply(subgoal_tac "insert RONE (insert RZERO (noalts_set \<union> alts_set)) = 
                      insert RZERO ((insert RONE noalts_set) \<union> alts_set)")
              apply(simp only:)
-  apply(subgoal_tac "  (sum_list
-                    (map rsize ( rdistinct rs (insert RZERO (insert RONE noalts_set \<union> alts_set)))))
-                   \<le>  (sum_list
-                    (map rsize (RONE # rdistinct rs (insert RZERO (insert RONE noalts_set \<union> alts_set)))))")
+  apply(subgoal_tac "rsizes (rdistinct rs (insert RZERO (insert RONE noalts_set \<union> alts_set)))
+                   \<le>  rsizes (RONE # rdistinct rs (insert RZERO (insert RONE noalts_set \<union> alts_set)))")
   apply (smt (verit, best) dual_order.trans insert_iff rrexp.distinct(15))
   apply (metis (no_types, opaque_lifting)  le_add_same_cancel2 list.simps(9) sum_list.Cons zero_le)
             apply fastforce
@@ -173,16 +164,11 @@ lemma flts_vs_nflts1:
   prefer 2
   apply fastforce
       apply(simp only:)
-      apply(subgoal_tac "  sum_list
-               (map rsize (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))))
-\<le>
-                sum_list
-               (map rsize (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set))))")
+      apply(subgoal_tac "rsizes (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))) \<le>
+              rsizes (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set)))")
 
-       apply(subgoal_tac 
-"sum_list (map rsize (rdistinct (rflts (a # rs)) ((insert a noalts_set) \<union> corr_set)))
-\<le>
- sum_list (map rsize (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))))")
+       apply(subgoal_tac  "rsizes (rdistinct (rflts (a # rs)) ((insert a noalts_set) \<union> corr_set)) \<le>
+              rsizes (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set)))")
   apply fastforce
        apply simp
   apply(subgoal_tac "(insert a (noalts_set \<union> alts_set)) = (insert a noalts_set) \<union> alts_set")
@@ -206,16 +192,11 @@ lemma flts_vs_nflts1:
   prefer 2
   apply fastforce
       apply(simp only:)
-      apply(subgoal_tac "  sum_list
-               (map rsize (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))))
-\<le>
-                sum_list
-               (map rsize (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set))))")
+      apply(subgoal_tac "rsizes (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))) \<le>
+             rsizes (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set)))")
 
-       apply(subgoal_tac 
-"sum_list (map rsize (rdistinct (rflts (a # rs)) ((insert a noalts_set) \<union> corr_set)))
-\<le>
- sum_list (map rsize (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))))")
+       apply(subgoal_tac "rsizes (rdistinct (rflts (a # rs)) ((insert a noalts_set) \<union> corr_set)) \<le>
+          rsizes (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set)))")
   apply fastforce
        apply simp
   apply(subgoal_tac "(insert a (noalts_set \<union> alts_set)) = (insert a noalts_set) \<union> alts_set")
@@ -243,16 +224,11 @@ lemma flts_vs_nflts1:
   prefer 2
   apply fastforce
       apply(simp only:)
-      apply(subgoal_tac "  sum_list
-               (map rsize (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))))
-\<le>
-                sum_list
-               (map rsize (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set))))")
+      apply(subgoal_tac "rsizes (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))) \<le>
+               rsizes (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set)))")
 
-       apply(subgoal_tac 
-"sum_list (map rsize (rdistinct (rflts (a # rs)) ((insert a noalts_set) \<union> corr_set)))
-\<le>
- sum_list (map rsize (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))))")
+       apply(subgoal_tac "rsizes (rdistinct (rflts (a # rs)) ((insert a noalts_set) \<union> corr_set)) \<le>
+          rsizes (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set)))")
   apply fastforce
        apply simp
   apply(subgoal_tac "(insert a (noalts_set \<union> alts_set)) = (insert a noalts_set) \<union> alts_set")
@@ -273,21 +249,13 @@ lemma flts_vs_nflts1:
 lemma flts_vs_nflts:
   assumes "\<forall>r \<in> noalts_set. \<forall>xs. r \<noteq> RALTS xs"
   and "\<forall>a \<in> alts_set. (\<exists>xs. a = RALTS xs \<and> set xs \<subseteq> corr_set)"
-  shows "sum_list (map rsize (rdistinct (rflts rs) (noalts_set \<union> corr_set)))
-         \<le> sum_list (map rsize (rdistinct rs (insert RZERO (noalts_set \<union> alts_set))))"
-  using assms
-  apply(induct rs arbitrary: noalts_set alts_set corr_set rule: rflts.induct)
-  apply(auto)[2]
-  using flts_vs_nflts1 apply presburger
-  using flts_vs_nflts1 apply presburger
-  using Suc_le_mono flts_vs_nflts1 apply presburger
-  using Suc_le_mono flts_vs_nflts1 apply presburger
-  using Suc_le_mono flts_vs_nflts1 by presburger
+  shows "rsizes (rdistinct (rflts rs) (noalts_set \<union> corr_set))
+         \<le> rsizes (rdistinct rs (insert RZERO (noalts_set \<union> alts_set)))"
+  by (simp add: assms flts_vs_nflts1)
 
 lemma distinct_simp_ineq_general:
   assumes "rsimp ` no_simp = has_simp" "finite no_simp"
-  shows "sum_list (map rsize (rdistinct (map rsimp rs) has_simp))
-           \<le> sum_list (map rsize (rdistinct rs no_simp))"
+  shows "rsizes (rdistinct (map rsimp rs) has_simp) \<le> rsizes (rdistinct rs no_simp)"
   using assms
   apply(induct rs no_simp arbitrary: has_simp rule: rdistinct.induct)
   apply simp
@@ -296,19 +264,18 @@ lemma distinct_simp_ineq_general:
 
 lemma larger_acc_smaller_distinct_res0:
   assumes "ss \<subseteq> SS"
-  shows "sum_list (map rsize (rdistinct rs SS)) \<le> sum_list (map rsize (rdistinct rs ss))"
+  shows "rsizes (rdistinct rs SS) \<le> rsizes (rdistinct rs ss)"
   using assms
   apply(induct rs arbitrary: ss SS)
    apply simp
   by (metis distinct_early_app1 rdistinct_smaller)
 
 lemma without_flts_ineq:
-  shows "sum_list (map rsize (rdistinct (rflts rs) {})) \<le> sum_list (map rsize (rdistinct rs {}))"
+  shows "rsizes (rdistinct (rflts rs) {}) \<le> rsizes (rdistinct rs {})"
 proof -
-  have "sum_list (map rsize (rdistinct (rflts rs) {}) ) \<le>  
-        sum_list (map rsize (rdistinct rs (insert RZERO {})))"
+  have "rsizes (rdistinct (rflts rs) {}) \<le>  rsizes (rdistinct rs (insert RZERO {}))"
     by (metis empty_iff flts_vs_nflts sup_bot_left)
-  also have "... \<le>  sum_list (map rsize (rdistinct rs {}))" 
+  also have "... \<le>  rsizes (rdistinct rs {})" 
     by (simp add: larger_acc_smaller_distinct_res0)
   finally show ?thesis
     by blast
@@ -316,28 +283,28 @@ qed
 
 
 lemma distinct_simp_ineq:
-  shows "sum_list (map rsize (rdistinct (map rsimp rs) {})) \<le> sum_list (map rsize (rdistinct rs {}))"
+  shows "rsizes (rdistinct (map rsimp rs) {}) \<le> rsizes (rdistinct rs {})"
   using distinct_simp_ineq_general by blast
 
 
 lemma alts_simp_control:
-  shows "rsize (rsimp (RALTS rs)) \<le> Suc (sum_list (map rsize (rdistinct rs {})))"
+  shows "rsize (rsimp (RALTS rs)) \<le> Suc (rsizes (rdistinct rs {}))"
 proof -
-  have "rsize (rsimp (RALTS rs)) \<le> Suc (sum_list (map rsize (rdistinct (rflts (map rsimp rs)) {})))"
+  have "rsize (rsimp (RALTS rs)) \<le> Suc (rsizes (rdistinct (rflts (map rsimp rs)) {}))"
      using alts_simp_ineq_unfold by auto
-   moreover have "\<dots> \<le> Suc (sum_list (map rsize (rdistinct (map rsimp rs) {})))"
+   moreover have "\<dots> \<le> Suc (rsizes (rdistinct (map rsimp rs) {}))"
     using without_flts_ineq by blast
-  ultimately show "rsize (rsimp (RALTS rs)) \<le> Suc (sum_list (map rsize (rdistinct rs {})))"
+  ultimately show "rsize (rsimp (RALTS rs)) \<le> Suc (rsizes (rdistinct rs {}))"
     by (meson Suc_le_mono distinct_simp_ineq le_trans)
 qed
 
 
 lemma larger_acc_smaller_distinct_res:
-  shows "sum_list (map rsize (rdistinct rs (insert a ss))) \<le> sum_list (map rsize (rdistinct rs ss))"
+  shows "rsizes (rdistinct rs (insert a ss)) \<le> rsizes (rdistinct rs ss)"
   by (simp add: larger_acc_smaller_distinct_res0 subset_insertI)
 
 lemma triangle_inequality_distinct:
-  shows "sum_list (map rsize (rdistinct (a # rs) ss)) \<le> rsize a + sum_list (map rsize (rdistinct rs ss))"
+  shows "rsizes (rdistinct (a # rs) ss) \<le> rsize a + rsizes (rdistinct rs ss)"
   apply(case_tac "a \<in> ss")
    apply simp
   by (simp add: larger_acc_smaller_distinct_res)
@@ -345,7 +312,7 @@ lemma triangle_inequality_distinct:
 
 lemma distinct_list_size_len_bounded:
   assumes "\<forall>r \<in> set rs. rsize r \<le> N" "length rs \<le> lrs"
-  shows "sum_list (map rsize rs) \<le> lrs * N "
+  shows "rsizes rs \<le> lrs * N "
   using assms
   by (metis rlist_bound dual_order.trans mult.commute mult_le_mono1)
 
@@ -360,7 +327,7 @@ lemma rdistinct_same_set:
 (* distinct_list_rexp_up_to_certain_size_bouded_by_set_enumerating_up_to_that_size *)
 lemma distinct_list_rexp_upto:
   assumes "\<forall>r\<in> set rs. (rsize r) \<le> N"
-  shows "sum_list (map rsize (rdistinct rs {})) \<le> (card (sizeNregex N)) * N"
+  shows "rsizes (rdistinct rs {}) \<le> (card (sizeNregex N)) * N"
   
   apply(subgoal_tac "distinct (rdistinct rs {})")
   prefer 2
@@ -383,7 +350,7 @@ lemma distinct_list_rexp_upto:
 
 lemma star_control_bounded:
   assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
-  shows "sum_list (map rsize (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r)) (star_updates s r [[c]])) {})) 
+  shows "rsizes (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r)) (star_updates s r [[c]])) {}) 
      \<le> (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * (Suc (N + rsize (RSTAR r)))"
   by (smt (verit) add_Suc_shift add_mono_thms_linordered_semiring(3) assms distinct_list_rexp_upto image_iff list.set_map plus_nat.simps(2) rsize.simps(5))
 
@@ -402,8 +369,7 @@ next
   then have "rsize (rders_simp (RSTAR r) s) = 
     rsize (rsimp (RALTS ((map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r)) (star_updates list r [[a]])))))"
     using star_closed_form by fastforce
-  also have "... \<le> Suc (sum_list (map rsize (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r))
-         (star_updates list r [[a]])) {})))"
+  also have "... \<le> Suc (rsizes (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r)) (star_updates list r [[a]])) {}))"
     using alts_simp_control by blast 
   also have "... \<le> Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * (Suc (N + rsize (RSTAR r)))" 
     using star_control_bounded[OF assms] by (metis add_mono le_add1 mult_Suc plus_1_eq_Suc)
@@ -417,14 +383,14 @@ lemma seq_estimate_bounded:
   assumes "\<forall>s. rsize (rders_simp r1 s) \<le> N1" 
       and "\<forall>s. rsize (rders_simp r2 s) \<le> N2"
   shows
-    "sum_list (map rsize (rdistinct (RSEQ (rders_simp r1 s) r2 # map (rders_simp r2) (vsuf s r1)) {})) 
+    "rsizes (rdistinct (RSEQ (rders_simp r1 s) r2 # map (rders_simp r2) (vsuf s r1)) {}) 
        \<le> (Suc (N1 + (rsize r2)) + (N2 * card (sizeNregex N2)))"
 proof -
-  have a: "sum_list (map rsize (rdistinct (map (rders_simp r2) (vsuf s r1)) {})) \<le> N2 * card (sizeNregex N2)"
+  have a: "rsizes (rdistinct (map (rders_simp r2) (vsuf s r1)) {}) \<le> N2 * card (sizeNregex N2)"
     by (metis assms(2) distinct_list_rexp_upto ex_map_conv mult.commute)
 
-  have "sum_list (map rsize (rdistinct (RSEQ (rders_simp r1 s) r2 # map (rders_simp r2) (vsuf s r1)) {})) \<le>
-          rsize (RSEQ (rders_simp r1 s) r2) + sum_list (map rsize (rdistinct (map (rders_simp r2) (vsuf s r1)) {}))"
+  have "rsizes (rdistinct (RSEQ (rders_simp r1 s) r2 # map (rders_simp r2) (vsuf s r1)) {}) \<le>
+          rsize (RSEQ (rders_simp r1 s) r2) + rsizes (rdistinct (map (rders_simp r2) (vsuf s r1)) {})"
     using triangle_inequality_distinct by blast    
   also have "... \<le> rsize (RSEQ (rders_simp r1 s) r2) + N2 * card (sizeNregex N2)"
     by (simp add: a)
@@ -450,7 +416,7 @@ next
   then have "rsize (rders_simp (RSEQ r1 r2) s) = 
     rsize (rsimp (RALTS ((RSEQ (rders_simp r1 s) r2) # (map (rders_simp r2) (vsuf s r1)))))" 
     using seq_closed_form_variant by (metis list.distinct(1)) 
-  also have "... \<le> Suc (sum_list (map rsize (rdistinct (RSEQ (rders_simp r1 s) r2 # map (rders_simp r2) (vsuf s r1)) {})))"
+  also have "... \<le> Suc (rsizes (rdistinct (RSEQ (rders_simp r1 s) r2 # map (rders_simp r2) (vsuf s r1)) {}))"
     using alts_simp_control by blast
   also have "... \<le> 2 + N1 + (rsize r2) + (N2 * card (sizeNregex N2))"
   using seq_estimate_bounded[OF assms] by auto

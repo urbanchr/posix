@@ -192,6 +192,9 @@ fun rsize :: "rrexp \<Rightarrow> nat" where
 | "rsize (RSEQ  r1 r2) = Suc (rsize r1 + rsize r2)"
 | "rsize (RSTAR  r) = Suc (rsize r)"
 
+abbreviation rsizes where
+  "rsizes rs \<equiv> sum_list (map rsize rs)"
+
 
 lemma rder_rsimp_ALTs_commute:
   shows "  (rder x (rsimp_ALTs rs)) = rsimp_ALTs (map (rder x) rs)"
@@ -238,14 +241,14 @@ lemma rSEQ_mono:
   done
 
 lemma ralts_cap_mono:
-  shows "rsize (RALTS rs) \<le> Suc ( sum_list (map rsize rs)) "
+  shows "rsize (RALTS rs) \<le> Suc (rsizes rs)"
   by simp
 
 
 
 
 lemma rflts_mono:
-  shows "sum_list (map rsize (rflts rs))\<le> sum_list (map rsize rs)"
+  shows "rsizes (rflts rs) \<le> rsizes rs"
   apply(induct rs)
   apply simp
   apply(case_tac "a = RZERO")
@@ -261,35 +264,29 @@ lemma rflts_mono:
   done
 
 lemma rdistinct_smaller: 
-  shows "sum_list (map rsize (rdistinct rs ss)) \<le> sum_list (map rsize rs)"
+  shows "rsizes (rdistinct rs ss) \<le> rsizes rs"
   apply (induct rs arbitrary: ss)
    apply simp
   by (simp add: trans_le_add2)
 
-lemma rdistinct_phi_smaller: 
-  "sum_list (map rsize (rdistinct rs {})) \<le> sum_list (map rsize rs)"
-  by (simp add: rdistinct_smaller)
-
 
 lemma rsimp_alts_mono :
   shows "\<And>x. (\<And>xa. xa \<in> set x \<Longrightarrow> rsize (rsimp xa) \<le> rsize xa)  \<Longrightarrow>
-rsize (rsimp_ALTs (rdistinct (rflts (map rsimp x)) {})) \<le> Suc (sum_list (map rsize x))"
+      rsize (rsimp_ALTs (rdistinct (rflts (map rsimp x)) {})) \<le> Suc (rsizes x)"
   apply(subgoal_tac "rsize (rsimp_ALTs (rdistinct (rflts (map rsimp x)) {} )) 
                     \<le> rsize (RALTS (rdistinct (rflts (map rsimp x)) {} ))")
   prefer 2
   using rsimp_aalts_smaller apply auto[1]
-  apply(subgoal_tac "rsize (RALTS (rdistinct (rflts (map rsimp x)) {})) \<le>Suc( sum_list (map rsize (rdistinct (rflts (map rsimp x)) {})))")
+  apply(subgoal_tac "rsize (RALTS (rdistinct (rflts (map rsimp x)) {})) \<le>Suc (rsizes (rdistinct (rflts (map rsimp x)) {}))")
   prefer 2
   using ralts_cap_mono apply blast
-  apply(subgoal_tac "sum_list (map rsize (rdistinct (rflts (map rsimp x)) {})) \<le>
-                     sum_list (map rsize ( (rflts (map rsimp x))))")
+  apply(subgoal_tac "rsizes (rdistinct (rflts (map rsimp x)) {}) \<le> rsizes (rflts (map rsimp x))")
   prefer 2
   using rdistinct_smaller apply presburger
-  apply(subgoal_tac "sum_list (map rsize (rflts (map rsimp x))) \<le> 
-                     sum_list (map rsize (map rsimp x))")
+  apply(subgoal_tac "rsizes (rflts (map rsimp x)) \<le> rsizes (map rsimp x)")
   prefer 2
   using rflts_mono apply blast
-  apply(subgoal_tac "sum_list (map rsize (map rsimp x)) \<le> sum_list (map rsize x)")
+  apply(subgoal_tac "rsizes (map rsimp x) \<le> rsizes x")
   prefer 2
   
   apply (simp add: sum_list_mono)
@@ -585,13 +582,13 @@ lemma bsimp_ASEQ2:
   done
 
 lemma elem_smaller_than_set:
-  shows "xa \<in> set  list \<Longrightarrow> rsize xa < Suc ( sum_list (map rsize list))"
+  shows "xa \<in> set  list \<Longrightarrow> rsize xa < Suc (rsizes list)"
   apply(induct list)
    apply simp
   by (metis image_eqI le_imp_less_Suc list.set_map member_le_sum_list)
 
 lemma rsimp_list_mono:
-  shows "sum_list (map rsize (map rsimp rs)) \<le> sum_list (map rsize rs)"
+  shows "rsizes (map rsimp rs) \<le> rsizes rs"
   apply(induct rs)
    apply simp+
   by (simp add: add_mono_thms_linordered_semiring(1) rsimp_mono)
@@ -599,7 +596,7 @@ lemma rsimp_list_mono:
 
 (*says anything coming out of simp+flts+db will be good*)
 lemma good2_obv_simplified:
-  shows " \<lbrakk>\<forall>y. rsize y < Suc (sum_list (map rsize rs)) \<longrightarrow> good (rsimp y) \<or> rsimp y = RZERO;
+  shows " \<lbrakk>\<forall>y. rsize y < Suc (rsizes rs) \<longrightarrow> good (rsimp y) \<or> rsimp y = RZERO;
            xa \<in> set (rdistinct (rflts (map rsimp rs)) {}); good (rsimp xa) \<or> rsimp xa = RZERO\<rbrakk> \<Longrightarrow> good xa"
   apply(subgoal_tac " \<forall>xa' \<in> set (map rsimp rs). good xa' \<or> xa' = RZERO")
   prefer 2
@@ -619,7 +616,7 @@ lemma good1:
    prefer 2
    apply(simp only:)
    apply simp
-  apply (smt (verit, ccfv_threshold) add_mono_thms_linordered_semiring(1) elem_smaller_than_set good0 good2_obv_simplified le_eq_less_or_eq nonalt_flts_rd order_less_trans plus_1_eq_Suc rdistinct_does_the_job rdistinct_phi_smaller rflts_mono rsimp_ALTs.simps(1) rsimp_list_mono)
+  apply (smt (verit, ccfv_threshold) add_mono_thms_linordered_semiring(1) elem_smaller_than_set good0 good2_obv_simplified le_eq_less_or_eq nonalt_flts_rd order_less_trans plus_1_eq_Suc rdistinct_does_the_job rdistinct_smaller rflts_mono rsimp_ALTs.simps(1) rsimp_list_mono)
   apply simp
   apply(subgoal_tac "good (rsimp x41) \<or> rsimp x41 = RZERO")
    apply(subgoal_tac "good (rsimp x42) \<or> rsimp x42 = RZERO")
