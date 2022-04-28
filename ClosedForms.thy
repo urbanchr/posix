@@ -1387,11 +1387,15 @@ rsimp ( (RALTS ( (RSEQ (rders r1 s) r2 # (map (rders r2) (vsuf s r1))))))"
   apply simp
   by (metis idem_after_simp1 rsimp.simps(1))
   
+lemma seq_closed_form_aux1a:
+  shows "rsimp (RALTS (RSEQ (rders r1 s) r2 # rs)) =
+           rsimp (RALTS (RSEQ (rders_simp r1 s) r2 # rs))"
+  by (metis head_one_more_simp rders.simps(1) rders_simp.simps(1) rders_simp_same_simpders rsimp.simps(1) rsimp_idem simp_flatten_aux0)
 
 
 lemma seq_closed_form_aux1:
-  shows "rsimp ( (RALTS ( (RSEQ (rders r1 s) r2 # (map (rders r2) (vsuf s r1)))))) =
-rsimp ( (RALTS ( (RSEQ (rders_simp r1 s) r2 # (map (rders r2) (vsuf s r1))))))"
+  shows "rsimp (RALTS (RSEQ (rders r1 s) r2 # (map (rders r2) (vsuf s r1)))) =
+           rsimp (RALTS (RSEQ (rders_simp r1 s) r2 # (map (rders r2) (vsuf s r1))))"
   by (smt (verit, best) list.simps(9) rders.simps(1) rders_simp.simps(1) rders_simp_same_simpders rsimp.simps(1) rsimp.simps(2) rsimp_idem)
 
 lemma add_simp_to_rest:
@@ -1418,38 +1422,37 @@ lemma seq_closed_form_aux2:
   by (metis add_simp_to_rest rsimp_compose_der2 vsuf_nonempty)
   
 
-lemma seq_closed_form: shows 
-"rsimp (rders_simp (RSEQ r1 r2) s) = 
-rsimp ( RALTS ( (RSEQ (rders_simp r1 s) r2) # 
-                (map (rders_simp r2) (vsuf s r1)) 
-              )  
-      )"
-  apply(case_tac s )
-   apply simp  
-  apply (metis idem_after_simp1 rsimp.simps(1))
-  apply(subgoal_tac " s \<noteq> []")
-  using rders_simp_same_simpders rsimp_idem seq_closed_form_aux1 seq_closed_form_aux2 seq_closed_form_general apply presburger
-  by fastforce
+lemma seq_closed_form: 
+  shows "rsimp (rders_simp (RSEQ r1 r2) s) = 
+           rsimp (RALTS ((RSEQ (rders_simp r1 s) r2) # (map (rders_simp r2) (vsuf s r1))))"
+proof (cases s)
+  case Nil
+  then show ?thesis 
+    by (simp add: rsimp_seq_equal1[symmetric])
+next
+  case (Cons a list)
+  have "rsimp (rders_simp (RSEQ r1 r2) s) = rsimp (rsimp (rders (RSEQ r1 r2) s))"
+    using local.Cons by (subst rders_simp_same_simpders)(simp_all)
+  also have "... = rsimp (rders (RSEQ r1 r2) s)"
+    by (simp add: rsimp_idem)
+  also have "... = rsimp (RALTS (RSEQ (rders r1 s) r2 # map (rders r2) (vsuf s r1)))"
+    using seq_closed_form_general by blast
+  also have "... = rsimp (RALTS (RSEQ (rders_simp r1 s) r2 # map (rders r2) (vsuf s r1)))"  
+    by (simp only: seq_closed_form_aux1)
+  also have "... = rsimp (RALTS (RSEQ (rders_simp r1 s) r2 # map (rders_simp r2) (vsuf s r1)))"  
+    using local.Cons by (subst seq_closed_form_aux2)(simp_all)
+  finally show ?thesis .
+qed
+
+lemma q: "s \<noteq> [] \<Longrightarrow> rders_simp (RSEQ r1 r2) s = rsimp (rders_simp (RSEQ r1 r2) s)"
+  using rders_simp_same_simpders rsimp_idem by presburger
   
 
-
-
-
-lemma seq_closed_form_variant: shows
-"s \<noteq> [] \<Longrightarrow> (rders_simp (RSEQ r1 r2) s) = 
-rsimp (RALTS ((RSEQ (rders_simp r1 s) r2) # (map (rders_simp r2) (vsuf s r1))))"
-  apply(induct s rule: rev_induct)
-   apply simp
-  apply(subst rders_simp_append)
-  apply(subst rders_simp_one_char)
-  apply(subst rsimp_idem[symmetric])
-  apply(subst rders_simp_one_char[symmetric])
-  apply(subst rders_simp_append[symmetric])
-  apply(insert seq_closed_form)
-  apply(subgoal_tac "rsimp (rders_simp (RSEQ r1 r2) (xs @ [x]))
- = rsimp (RALTS (RSEQ (rders_simp r1 (xs @ [x])) r2 # map (rders_simp r2) (vsuf (xs @ [x]) r1)))")
-   apply force
-  by presburger
+lemma seq_closed_form_variant: 
+  assumes "s \<noteq> []"
+  shows "rders_simp (RSEQ r1 r2) s = 
+             rsimp (RALTS (RSEQ (rders_simp r1 s) r2 # (map (rders_simp r2) (vsuf s r1))))"
+  using assms q seq_closed_form by force
 
 
 fun hflat_aux :: "rrexp \<Rightarrow> rrexp list" where
