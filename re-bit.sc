@@ -186,9 +186,9 @@ def bder(c: Char, r: ARexp) : ARexp = r match {
 
 // derivative w.r.t. a string (iterates bder)
 @tailrec
-def bders (s: List[Char], r: ARexp) : ARexp = s match {
+def bders (r: ARexp, s: List[Char]) : ARexp = s match {
   case Nil => r
-  case c::s => bders(s, bder(c, r))
+  case c::s => bders(bder(c, r), s)
 }
 
 // unsimplified lexing function (produces a value)
@@ -218,7 +218,7 @@ def distinctWith[B](xs: List[B],
                     acc: List[B] = Nil): List[B] = xs match {
   case Nil => Nil
   case x::xs => {
-    if (xs.exists(y => eq(y, x))) distinctWith(xs, eq, acc)
+    if (acc.exists(eq(_, x))) distinctWith(xs, eq, acc)
     else x::distinctWith(xs, eq, x::acc)
   }
 } 
@@ -292,6 +292,17 @@ def asize(r: ARexp) : Int = size(erase(r))
 
 // Test case
 
+val reg = ("a" | "ab") ~ ("c" | "bc") 
+val str = "abc"
+
+println(bders(internalise(reg), str.toList))         // AONE(List(Z, S))
+println(bsimp(bders(internalise(reg), str.toList)))  // AONE(List(Z, S))
+println(bders_simp(internalise(reg), str.toList))  // AONE(List(Z, S))
+println(blexer(reg, str))
+println(blexer_simp(reg, str)) // Sequ(Left(Chr(a)),Right(Sequ(Chr(b),Chr(c))))
+
+
+/*
 val TEST = STAR("a" | "aa")
 
 
@@ -305,3 +316,4 @@ println(asize(bders_simp(internalise(TEST), ("a" * 50000).toList)))
 
 // including decoding
 println(blexer_simp(TEST, "a" * 100))
+*/
