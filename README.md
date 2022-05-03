@@ -23,4 +23,4 @@ Tested with Isabelle2021-1.
 
 * BlexerSimp.thy (correctness for aggressive simplification rules)
 
-* Finite Bound Result: BasicIdentidies.thy, ClosedForms.thy, GeneralRegexBound, ClosedFormBounds.thy (Section 5 in the paper)
+* Finite Bound Result: BasicIdentidies.thy, ClosedForms.thy, GeneralRegexBound, ClosedFormBounds.thy (formalises all resilts from Section 5 in the paper)
