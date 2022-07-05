@@ -539,8 +539,10 @@ lemma early_late_der_frewrites:
      apply (simp add: frewrites_alt)
   apply (simp add: frewrites_cons)
    apply (simp add: frewrites_append)
-  by (simp add: frewrites_cons)
-
+  apply (simp add: frewrites_cons)
+  apply (auto simp add: frewrites_cons)
+  using frewrite.intros(1) many_steps_later by blast
+  
 
 lemma gstar0:
   shows "rsa @ (rdistinct rs (set rsa)) \<leadsto>g* rsa @ (rdistinct rs (insert RZERO (set rsa)))"
@@ -642,7 +644,8 @@ lemma r_finite1:
   apply(induct r)
   apply simp+
    apply (metis list.set_intros(1))
-  by blast
+  apply blast
+  by simp
   
 
 
@@ -1047,7 +1050,7 @@ lemma simp_hrewrites:
     apply (meson flts_gstar greal_trans grewrites_ralts_rsimpalts gstar_rdistinct)
 
    apply (simp add: grewrites_ralts hrewrites_list)
-  by simp
+  by simp_all
 
 lemma interleave_aux1:
   shows " RALT (RSEQ RZERO r1) r h\<leadsto>*  r"
@@ -1121,7 +1124,7 @@ lemma inside_simp_removal:
    apply(subgoal_tac "rder x (RALTS xa) h\<leadsto>* rder x (rsimp (RALTS xa))")
   using hrewrites_simpeq apply presburger
   using interleave_star1 simp_hrewrites apply presburger
-  by simp
+  by simp_all
   
 
 
@@ -1248,11 +1251,15 @@ lemma created_by_seq_der:
   apply simp+
   
   using created_by_seq.cases apply blast
-  
-  apply (meson created_by_seq.cases rrexp.distinct(19) rrexp.distinct(21))
-  apply (metis created_by_seq.simps rder.simps(5))
-   apply (smt (verit, ccfv_threshold) created_by_seq.simps list.set_intros(1) list.simps(8) list.simps(9) rder.simps(4) rrexp.distinct(25) rrexp.inject(3))
-  using created_by_seq.intros(1) by force
+      apply(auto)
+  apply (meson created_by_seq.cases rrexp.distinct(23) rrexp.distinct(25))
+  using created_by_seq.simps apply blast
+  apply (meson created_by_seq.simps)
+  using created_by_seq.intros(1) apply blast
+  apply (metis (no_types, lifting) created_by_seq.simps k0a list.set_intros(1) list.simps(8) list.simps(9) rrexp.distinct(31))
+  apply (simp add: created_by_seq.intros(1))
+  using created_by_seq.simps apply blast
+  by (simp add: created_by_seq.intros(1))
 
 lemma createdbyseq_left_creatable:
   shows "created_by_seq (RALT r1 r2) \<Longrightarrow> created_by_seq r1"
@@ -1566,7 +1573,7 @@ lemma hflat_aux_grewrites:
   apply simp
   apply (metis (no_types, lifting) append_Cons append_eq_append_conv2 gmany_steps_later greal_trans grewrite.intros(2) grewrites_append self_append_conv)
   apply simp
-  by simp
+  by simp_all
   
 
 
@@ -1600,7 +1607,9 @@ lemma hfau_rsimpeq2:
   apply(subgoal_tac "rsimp (RALT a aa) = rsimp (RALTS (hflat_aux a @ hflat_aux aa))")
   using hflat_aux.simps(1) apply presburger
   apply simp
-  using cbs_hfau_rsimpeq1 by fastforce
+  using cbs_hfau_rsimpeq1 apply(fastforce)
+  by simp
+  
 
 lemma star_closed_form1:
   shows "rsimp (rders (RSTAR r0) (c#s)) = 

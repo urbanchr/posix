@@ -141,7 +141,7 @@ lemma flts_vs_nflts1:
              apply(simp only:)
   apply(subgoal_tac "rsizes (rdistinct rs (insert RZERO (insert RONE noalts_set \<union> alts_set)))
                    \<le>  rsizes (RONE # rdistinct rs (insert RZERO (insert RONE noalts_set \<union> alts_set)))")
-  apply (smt (verit, best) dual_order.trans insert_iff rrexp.distinct(15))
+  apply (smt (verit, ccfv_threshold) dual_order.trans insertE rrexp.distinct(17))
   apply (metis (no_types, opaque_lifting)  le_add_same_cancel2 list.simps(9) sum_list.Cons zero_le)
             apply fastforce
            apply fastforce
@@ -151,8 +151,8 @@ lemma flts_vs_nflts1:
   using rflts.simps(4) apply presburger
       apply simp
       apply(subgoal_tac "insert RONE (noalts_set \<union> corr_set) = (insert RONE noalts_set) \<union> corr_set")
-  apply(simp only:)
-  apply (metis Un_insert_left insertE rrexp.distinct(15))
+        apply(simp only:)
+  apply (metis Un_insert_left insertE rrexp.distinct(17))
       apply fastforce
      apply(case_tac "a \<in> noalts_set")
       apply simp
@@ -174,14 +174,14 @@ lemma flts_vs_nflts1:
   apply(subgoal_tac "(insert a (noalts_set \<union> alts_set)) = (insert a noalts_set) \<union> alts_set")
         apply(simp only:)
         apply(subgoal_tac "noalts_set \<union> corr_set = (insert a noalts_set) \<union> corr_set")
-  apply(simp only:)
-  apply (metis insertE rrexp.distinct(21))
+          apply(simp only:)
+  apply (metis insertE nonalt.simps(1) nonalt.simps(4))
         apply blast
   
   apply fastforce
   apply force
-     apply simp
-     apply (metis Un_insert_left insert_iff rrexp.distinct(21))
+      apply simp
+  apply (metis Un_insert_left insertE nonalt.simps(1) nonalt.simps(4))
     apply(case_tac "a \<in> noalts_set")
      apply simp
   apply(subgoal_tac "a \<notin> alts_set")
@@ -204,14 +204,13 @@ lemma flts_vs_nflts1:
         apply(subgoal_tac "noalts_set \<union> corr_set = (insert a noalts_set) \<union> corr_set")
   apply(simp only:)
 
-
-  apply (metis insertE rrexp.distinct(25))
+         apply (metis insertE rrexp.distinct(31))
   apply blast
   apply fastforce
   apply force
      apply simp
   
-    apply (metis Un_insert_left insertE rrexp.distinct(25))
+    apply (metis Un_insert_left insertE rrexp.distinct(31))
 
   using Suc_le_mono flts_size_reduction_alts apply presburger
      apply(case_tac "a \<in> noalts_set")
@@ -234,16 +233,42 @@ lemma flts_vs_nflts1:
   apply(subgoal_tac "(insert a (noalts_set \<union> alts_set)) = (insert a noalts_set) \<union> alts_set")
         apply(simp only:)
         apply(subgoal_tac "noalts_set \<union> corr_set = (insert a noalts_set) \<union> corr_set")
-  apply(simp only:)
-  apply (metis insertE rrexp.distinct(29))
+       apply(simp only:)
+  apply (metis insertE rrexp.distinct(37))
 
         apply blast
   
   apply fastforce
   apply force
      apply simp
-  apply (metis Un_insert_left insert_iff rrexp.distinct(29))
-  done
+   apply (metis Un_insert_left insert_iff rrexp.distinct(37))
+  apply(case_tac "a \<in> noalts_set")
+      apply simp
+  apply(subgoal_tac "a \<notin> alts_set")
+     prefer 2
+      apply blast
+  apply(case_tac "a \<in> corr_set")
+      apply(subgoal_tac "noalts_set \<union> corr_set = insert a ( noalts_set  \<union> corr_set)")
+  prefer 2
+  apply fastforce
+   apply(simp only:)
+   apply(subgoal_tac "rsizes (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set))) \<le>
+               rsizes (rdistinct (a # rs) (insert RZERO (noalts_set \<union> alts_set)))")
+
+       apply(subgoal_tac "rsizes (rdistinct (rflts (a # rs)) ((insert a noalts_set) \<union> corr_set)) \<le>
+          rsizes (rdistinct (a # rs) (insert RZERO ((insert a noalts_set) \<union> alts_set)))")
+  apply fastforce
+       apply simp
+  apply(subgoal_tac "(insert a (noalts_set \<union> alts_set)) = (insert a noalts_set) \<union> alts_set")
+        apply(simp only:)
+        apply(subgoal_tac "noalts_set \<union> corr_set = (insert a noalts_set) \<union> corr_set")
+       apply(simp only:)
+  apply (metis insertE nonalt.simps(1) nonalt.simps(7))
+  apply blast
+  apply blast
+  apply force
+  apply(auto)
+  by (metis Un_insert_left insert_iff rrexp.distinct(39))
 
 
 lemma flts_vs_nflts:
@@ -425,7 +450,6 @@ next
     by auto 
 qed
 
-
 lemma rders_simp_bounded: 
   shows "\<exists>N. \<forall>s. rsize (rders_simp r s) \<le> N"
   apply(induct r)
@@ -440,9 +464,11 @@ lemma rders_simp_bounded:
   apply(assumption)
   apply(assumption)
   apply (metis alts_closed_form_bounded size_list_estimation')
-  using star_closed_form_bounded by blast
-
-
+  using star_closed_form_bounded apply blast
+  apply(auto)
+  (* HERE *)
+  sorry
+  
 unused_thms
 
 end

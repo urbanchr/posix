@@ -21,6 +21,42 @@ lemma Sequ_empty [simp]:
   and   "{} ;; A = {}"
   by (simp_all add: Sequ_def)
 
+lemma concI[simp,intro]: "u : A \<Longrightarrow> v : B \<Longrightarrow> u@v : A ;; B"
+by (auto simp add: Sequ_def)
+
+lemma concE[elim]: 
+assumes "w \<in> A ;; B"
+obtains u v where "u \<in> A" "v \<in> B" "w = u@v"
+using assms by (auto simp: Sequ_def)
+
+lemma concI_if_Nil2: "[] \<in> B \<Longrightarrow> xs : A \<Longrightarrow> xs \<in> A ;; B"
+by (metis append_Nil2 concI)
+
+lemma conc_assoc: "(A ;; B) ;; C = A ;; (B ;; C)"
+by (auto elim!: concE) (simp only: append_assoc[symmetric] concI)
+
+
+text \<open>Language power operations\<close>
+
+overloading lang_pow == "compow :: nat \<Rightarrow> string set \<Rightarrow> string set"
+begin
+  primrec lang_pow :: "nat \<Rightarrow> string set \<Rightarrow> string set" where
+  "lang_pow 0 A = {[]}" |
+  "lang_pow (Suc n) A = A ;; (lang_pow n A)"
+end
+
+
+lemma conc_pow_comm:
+  shows "A ;; (A ^^ n) = (A ^^ n) ;; A"
+by (induct n) (simp_all add: conc_assoc[symmetric])
+
+lemma lang_pow_add: "A ^^ (n + m) = (A ^^ n) ;; (A ^^ m)"
+  by (induct n) (auto simp: conc_assoc)
+
+lemma lang_empty: 
+  fixes A::"string set"
+  shows "A ^^ 0 = {[]}"
+  by simp
 
 section \<open>Semantic Derivative (Left Quotient) of Languages\<close>
 
@@ -88,6 +124,11 @@ lemma Star_Der_Sequ:
 unfolding Der_def Sequ_def
 by(auto simp add: Star_decomp)
 
+lemma Der_inter[simp]:   "Der a (A \<inter> B) = Der a A \<inter> Der a B"
+  and Der_compl[simp]:   "Der a (-A) = - Der a A"
+  and Der_Union[simp]:   "Der a (Union M) = Union(Der a ` M)"
+  and Der_UN[simp]:      "Der a (UN x:I. S x) = (UN x:I. Der a (S x))"
+by (auto simp: Der_def)
 
 lemma Der_star[simp]:
   shows "Der c (A\<star>) = (Der c A) ;; A\<star>"
@@ -102,6 +143,13 @@ proof -
     using Star_Der_Sequ by auto
   finally show "Der c (A\<star>) = (Der c A) ;; A\<star>" .
 qed
+
+lemma Der_pow[simp]:
+  shows "Der c (A ^^ n) = (if n = 0 then {} else (Der c A) ;; (A ^^ (n - 1)))"
+  apply(induct n arbitrary: A)
+   apply(auto simp add: Cons_eq_append_conv)
+  by (metis Suc_pred concI_if_Nil2 conc_assoc conc_pow_comm lang_pow.simps(2))
+
 
 lemma Star_concat:
   assumes "\<forall>s \<in> set ss. s \<in> A"  
@@ -119,6 +167,7 @@ using assms
 
 
 
+
 section \<open>Regular Expressions\<close>
 
 datatype rexp =
@@ -128,6 +177,7 @@ datatype rexp =
 | SEQ rexp rexp
 | ALT rexp rexp
 | STAR rexp
+| NTIMES rexp nat
 
 section \<open>Semantics of Regular Expressions\<close>
  
@@ -140,7 +190,7 @@ where
 | "L (SEQ r1 r2) = (L r1) ;; (L r2)"
 | "L (ALT r1 r2) = (L r1) \<union> (L r2)"
 | "L (STAR r) = (L r)\<star>"
-
+| "L (NTIMES r n) = (L r) ^^ n"
 
 section \<open>Nullable, Derivatives\<close>
 
@@ -153,7 +203,7 @@ where
 | "nullable (ALT r1 r2) = (nullable r1 \<or> nullable r2)"
 | "nullable (SEQ r1 r2) = (nullable r1 \<and> nullable r2)"
 | "nullable (STAR r) = True"
-
+| "nullable (NTIMES r n) = (if n = 0 then True else nullable r)"
 
 fun
  der :: "char \<Rightarrow> rexp \<Rightarrow> rexp"
@@ -167,6 +217,8 @@ where
       then ALT (SEQ (der c r1) r2) (der c r2)
       else SEQ (der c r1) r2)"
 | "der c (STAR r) = SEQ (der c r) (STAR r)"
+| "der c (NTIMES r n) = (if n = 0 then ZERO else SEQ (der c r) (NTIMES r (n - 1)))"
+
 
 fun 
  ders :: "string \<Rightarrow> rexp \<Rightarrow> rexp"
@@ -175,13 +227,23 @@ where
 | "ders (c # s) r = ders s (der c r)"
 
 
+lemma pow_empty_iff:
+  shows "[] \<in> (L r) ^^ n \<longleftrightarrow> (if n = 0 then True else [] \<in> (L r))"
+  by (induct n) (auto simp add: Sequ_def)
+
 lemma nullable_correctness:
   shows "nullable r  \<longleftrightarrow> [] \<in> (L r)"
-by (induct r) (auto simp add: Sequ_def) 
+  by (induct r) (auto simp add: Sequ_def pow_empty_iff) 
 
 lemma der_correctness:
   shows "L (der c r) = Der c (L r)"
-by (induct r) (simp_all add: nullable_correctness)
+  apply (induct r) 
+        apply(auto simp add: nullable_correctness Sequ_def)
+  using Der_def apply force
+  using Der_def apply auto[1]
+  apply (smt (verit, ccfv_SIG) Der_def append_eq_Cons_conv mem_Collect_eq)
+  using Der_def apply force
+  using Der_Sequ Sequ_def by auto
 
 lemma ders_correctness:
   shows "L (ders s r) = Ders s (L r)"
@@ -195,42 +257,6 @@ lemma ders_append:
 lemma ders_snoc:
   shows "ders (s @ [c]) r = der c (ders s r)"
   by (simp add: ders_append)
-
-
-(*
-datatype ctxt = 
-    SeqC rexp bool
-  | AltCL rexp
-  | AltCH rexp 
-  | StarC rexp 
-
-function
-     down :: "char \<Rightarrow> rexp \<Rightarrow> ctxt list \<Rightarrow> rexp * ctxt list"
-and  up :: "char \<Rightarrow> rexp \<Rightarrow> ctxt list \<Rightarrow> rexp * ctxt list"
-where
-  "down c (SEQ r1 r2) ctxts =
-     (if (nullable r1) then down c r1 (SeqC r2 True # ctxts) 
-      else down c r1 (SeqC r2 False # ctxts))"
-| "down c (CH d) ctxts = 
-     (if c = d then up c ONE ctxts else up c ZERO ctxts)"
-| "down c ONE ctxts = up c ZERO ctxts"
-| "down c ZERO ctxts = up c ZERO ctxts"
-| "down c (ALT r1 r2) ctxts = down c r1 (AltCH r2 # ctxts)"
-| "down c (STAR r1) ctxts = down c r1 (StarC r1 # ctxts)"
-| "up c r [] = (r, [])"
-| "up c r (SeqC r2 False # ctxts) = up c (SEQ r r2) ctxts"
-| "up c r (SeqC r2 True # ctxts) = down c r2 (AltCL (SEQ r r2) # ctxts)"
-| "up c r (AltCL r1 # ctxts) = up c (ALT r1 r) ctxts"
-| "up c r (AltCH r2 # ctxts) = down c r2 (AltCL r # ctxts)"
-| "up c r (StarC r1 # ctxts) = up c (SEQ r (STAR r1)) ctxts"
-  apply(pat_completeness)
-  apply(auto)
-  done
-
-termination
-  sorry
-
-*)
 
 
 end

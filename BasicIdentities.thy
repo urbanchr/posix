@@ -9,6 +9,7 @@ datatype rrexp =
 | RSEQ rrexp rrexp
 | RALTS "rrexp list"
 | RSTAR rrexp
+| RNTIMES rrexp nat
 
 abbreviation
   "RALT r1 r2 \<equiv> RALTS [r1, r2]"
@@ -23,7 +24,7 @@ where
 | "rnullable (RALTS rs) = (\<exists>r \<in> set rs. rnullable r)"
 | "rnullable (RSEQ r1 r2) = (rnullable r1 \<and> rnullable r2)"
 | "rnullable (RSTAR r) = True"
-
+| "rnullable (RNTIMES r n) = (if n = 0 then True else rnullable r)"
 
 fun
  rder :: "char \<Rightarrow> rrexp \<Rightarrow> rrexp"
@@ -36,8 +37,8 @@ where
      (if rnullable r1
       then RALT   (RSEQ (rder c r1) r2) (rder c r2)
       else RSEQ   (rder c r1) r2)"
-| "rder c (RSTAR r) = RSEQ  (rder c r) (RSTAR r)"
-
+| "rder c (RSTAR r) = RSEQ  (rder c r) (RSTAR r)"   
+| "rder c (RNTIMES r n) = (if n = 0 then RZERO else RSEQ (rder c r) (RNTIMES r (n - 1)))"
 
 fun 
   rders :: "rrexp \<Rightarrow> string \<Rightarrow> rrexp"
@@ -191,6 +192,7 @@ fun rsize :: "rrexp \<Rightarrow> nat" where
 | "rsize (RALTS  rs) = Suc (sum_list (map rsize rs))"
 | "rsize (RSEQ  r1 r2) = Suc (rsize r1 + rsize r2)"
 | "rsize (RSTAR  r) = Suc (rsize r)"
+| "rsize (RNTIMES  r n) = Suc (rsize r) + n"
 
 abbreviation rsizes where
   "rsizes rs \<equiv> sum_list (map rsize rs)"
@@ -237,7 +239,9 @@ lemma rSEQ_mono:
      apply(case_tac r2)
         apply simp_all
      apply(case_tac r2)
-  apply simp_all
+         apply simp_all
+  apply(case_tac r2)
+         apply simp_all
   done
 
 lemma ralts_cap_mono:
@@ -329,7 +333,9 @@ lemma idiot2:
    apply(case_tac r2)
   apply simp_all
   apply(case_tac r2)
-       apply simp_all
+         apply simp_all
+apply(case_tac r2)
+         apply simp_all
   done
 
 lemma rders__onechar:
@@ -374,7 +380,7 @@ fun good :: "rrexp \<Rightarrow> bool" where
 | "good (RSEQ  _ RZERO) = False"
 | "good (RSEQ r1 r2) = (good r1 \<and> good r2)"
 | "good (RSTAR r) = True"
-
+| "good (RNTIMES r n) = True"
 
 lemma  k0a:
   shows "rflts [RALTS rs] =   rs"
@@ -424,9 +430,8 @@ lemma flts2:
      apply (metis flts1 good.simps(5) good.simps(6) k0a neq_Nil_conv)
     apply (metis flts1 good.simps(5) good.simps(6) k0a neq_Nil_conv)
    apply fastforce
-  apply(simp)
-  done  
-
+   apply(simp)
+  by simp
 
 
 lemma flts3:
@@ -458,7 +463,9 @@ lemma good_SEQ:
   apply(case_tac r2)
         apply(simp_all)
   apply(case_tac r2)
-       apply(simp_all)
+         apply(simp_all)
+apply(case_tac r2)
+         apply(simp_all)
   done
 
 lemma rsize0:
@@ -509,7 +516,7 @@ lemma n0:
   apply(induct rs )
    apply(auto)
     apply (metis list.set_intros(1) nn1qq nonalt.elims(3))
-  apply (metis nonalt.elims(2) nonnested.simps(3) nonnested.simps(4) nonnested.simps(5) nonnested.simps(6) nonnested.simps(7))
+  apply (metis nonalt.elims(2) nonnested.simps(3) nonnested.simps(4) nonnested.simps(5) nonnested.simps(6) nonnested.simps(7) nonnested.simps(8))
   using bbbbs1 apply fastforce
   by (metis bbbbs1 list.set_intros(2) nn1qq)
 
@@ -552,8 +559,8 @@ lemma nn1b:
   apply(case_tac "\<exists>bs. rsimp r1 = RONE")
     apply(auto)[1]
   using idiot apply fastforce
-  using idiot2 nonnested.simps(11) apply presburger
-  by (metis (mono_tags, lifting) Diff_empty image_iff list.set_map nn1bb nn1c rdistinct_set_equality1)
+  apply (simp add: idiot2)
+  by (metis (mono_tags, lifting) image_iff list.set_map nn1bb nn1c rdistinct_set_equality)
 
 lemma nonalt_flts_rd:
   shows "\<lbrakk>xa \<in> set (rdistinct (rflts (map rsimp rs)) {})\<rbrakk>
@@ -603,6 +610,7 @@ lemma good2_obv_simplified:
    apply (simp add: elem_smaller_than_set)
   by (metis Diff_empty flts3 rdistinct_set_equality1)
 
+thm Diff_empty flts3 rdistinct_set_equality1
   
 lemma good1:
   shows "good (rsimp a) \<or> rsimp a = RZERO"
@@ -632,8 +640,9 @@ lemma good1:
   apply blast
   apply fastforce
   using less_add_Suc2 apply blast  
-  using less_iff_Suc_add by blast
-
+  using less_iff_Suc_add apply blast
+  using good.simps(45) rsimp.simps(7) by presburger
+  
 
 
 fun
@@ -645,28 +654,51 @@ where
 | "RL (RSEQ r1 r2) = (RL r1) ;; (RL r2)"
 | "RL (RALTS rs) = (\<Union> (set (map RL rs)))"
 | "RL (RSTAR r) = (RL r)\<star>"
+| "RL (RNTIMES r n) = (RL r) ^^ n"
 
+lemma pow_rempty_iff:
+  shows "[] \<in> (RL r) ^^ n \<longleftrightarrow> (if n = 0 then True else [] \<in> (RL r))"
+  by (induct n) (auto simp add: Sequ_def)
 
 lemma RL_rnullable:
   shows "rnullable r = ([] \<in> RL r)"
   apply(induct r)
-  apply(auto simp add: Sequ_def)
+        apply(auto simp add: Sequ_def pow_rempty_iff)
   done
+
+lemma concI_if_Nil1: "[] \<in> A \<Longrightarrow> xs : B \<Longrightarrow> xs \<in> A ;; B"
+by (metis append_Nil concI)
+
+
+lemma empty_pow_add:
+  fixes A::"string set"
+  assumes "[] \<in> A" "s \<in> A ^^ n"
+  shows "s \<in> A ^^ (n + m)"
+  using assms
+  apply(induct m arbitrary: n)
+   apply(auto simp add: Sequ_def)
+  done
+
+(*
+lemma der_pow:
+  shows "Der c (A ^^ n) = (if n = 0 then {} else (Der c A) ;; (A ^^ (n - 1)))"
+  apply(induct n arbitrary: A)
+   apply(auto)
+  by (smt (verit, best) Suc_pred concE concI concI_if_Nil2 conc_pow_comm lang_pow.simps(2))
+*)
 
 lemma RL_rder:
   shows "RL (rder c r) = Der c (RL r)"
   apply(induct r)
-  apply(auto simp add: Sequ_def Der_def)
+  apply(auto simp add: Sequ_def Der_def)[5]
         apply (metis append_Cons)
   using RL_rnullable apply blast
   apply (metis append_eq_Cons_conv)
   apply (metis append_Cons)
-  apply (metis RL_rnullable append_eq_Cons_conv)
-  apply (metis Star.step append_Cons)
-  using Star_decomp by auto
-
-
-
+    apply (metis RL_rnullable append_eq_Cons_conv)
+  apply simp
+  apply(simp)
+  done
 
 lemma RL_rsimp_RSEQ:
   shows "RL (rsimp_SEQ r1 r2) = (RL r1 ;; RL r2)"
@@ -843,12 +875,14 @@ lemma idem_after_simp1:
   apply(case_tac "rsimp aa")
   apply simp+
   apply (metis no_alt_short_list_after_simp no_further_dB_after_simp)
-  by simp
+   apply(simp)
+  apply(simp)
+  done
 
 lemma identity_wwo0:
   shows "rsimp (rsimp_ALTs (RZERO # rs)) = rsimp (rsimp_ALTs rs)"
-  by (metis idem_after_simp1 list.exhaust list.simps(8) list.simps(9) rflts.simps(2) rsimp.simps(2) rsimp.simps(3) rsimp_ALTs.simps(1) rsimp_ALTs.simps(2) rsimp_ALTs.simps(3))
-
+  apply (metis idem_after_simp1 list.exhaust list.simps(8) list.simps(9) rflts.simps(2) rsimp.simps(2) rsimp.simps(3) rsimp_ALTs.simps(1) rsimp_ALTs.simps(2) rsimp_ALTs.simps(3))
+  done
 
 lemma distinct_removes_last:
   shows "\<lbrakk>a \<in> set as\<rbrakk>
@@ -994,12 +1028,15 @@ lemma flatten_rsimpalts:
   
   apply(subgoal_tac "\<forall>r \<in> set( rflts (map rsimp rsa)). good r")
    apply(case_tac "rdistinct (rflts (map rsimp rsa)) {}")
-    apply simp
-   apply(case_tac "listb")
-    apply simp+
-  apply (metis Cons_eq_appendI good1_flatten rflts.simps(3) rsimp.simps(2) rsimp_ALTs.simps(3))
-  by (metis (mono_tags, lifting) flts3 good1 image_iff list.set_map)
-
+     apply simp
+  apply auto[1]
+  apply simp
+  apply(simp)
+   apply(case_tac "lista")
+  apply simp_all
+ 
+   apply (metis append_Cons append_Nil good1_flatten rflts.simps(2) rsimp.simps(2) rsimp_ALTs.elims)
+   by (metis (no_types, opaque_lifting) append_Cons append_Nil good1_flatten rflts.simps(2) rsimp.simps(2) rsimp_ALTs.elims)
 
 lemma last_elem_out:
   shows "\<lbrakk>x \<notin> set xs; x \<notin> rset \<rbrakk> \<Longrightarrow> rdistinct (xs @ [x]) rset = rdistinct xs rset @ [x]"
@@ -1127,8 +1164,9 @@ lemma spilled_alts_contained:
   apply fastforce
   apply fastforce
   apply fastforce
-  by fastforce
-
+  apply fastforce
+  by simp
+  
 
 lemma distinct_removes_duplicate_flts:
   shows " a \<in> set rsa
@@ -1143,29 +1181,19 @@ lemma distinct_removes_duplicate_flts:
       apply(subgoal_tac " rdistinct (rflts (map rsimp rsa @ [rsimp a])) {} =  
                           rdistinct (rflts (map rsimp rsa @ [RONE])) {}")
       apply (simp only:)
-       apply(subst flts_keeps1)
-  apply (metis distinct_removes_last(1) rflts_def_idiot2 rrexp.simps(20) rrexp.simps(6))
+        apply(subst flts_keeps1)
+  apply (metis distinct_removes_last(1) flts_append in_set_conv_decomp rflts.simps(4))
       apply presburger
         apply(subgoal_tac " rdistinct (rflts (map rsimp rsa @ [rsimp a]))    {} =  
                             rdistinct ((rflts (map rsimp rsa)) @ [RCHAR x]) {}")
       apply (simp only:)
-      prefer 2
-      apply (metis flts_keeps_others rrexp.distinct(21) rrexp.distinct(3))
-  apply (metis distinct_removes_last(1) rflts_def_idiot2 rrexp.distinct(21) rrexp.distinct(3))
-
-    apply (metis distinct_removes_last(1) flts_keeps_others rflts_def_idiot2 rrexp.distinct(25) rrexp.distinct(5))
-   prefer 2
-   apply (metis distinct_removes_last(1) flts_keeps_others flts_removes0 rflts_def_idiot2 rrexp.distinct(29))
-  apply(subgoal_tac "rflts (map rsimp rsa @ [rsimp a]) = rflts (map rsimp rsa) @ x")
-  prefer 2
-  apply (simp add: rflts_spills_last)
-  apply(subgoal_tac "\<forall> r \<in> set x. r \<in> set (rflts (map rsimp rsa))")
-    prefer 2
-  apply (metis (mono_tags, lifting) image_iff image_set spilled_alts_contained)
-  apply (metis rflts_spills_last)
-  by (metis distinct_removes_list spilled_alts_contained)
-
-
+       prefer 2
+       apply (metis flts_append rflts.simps(1) rflts.simps(5))
+  apply (metis distinct_removes_last(1) rflts_def_idiot2 rrexp.distinct(25) rrexp.distinct(3))
+  apply (metis distinct_removes_last(1) flts_append rflts.simps(1) rflts.simps(6) rflts_def_idiot2 rrexp.distinct(31) rrexp.distinct(5))
+  apply (metis distinct_removes_list rflts_spills_last spilled_alts_contained)
+  apply (metis distinct_removes_last(1) flts_append good.simps(1) good.simps(44) rflts.simps(1) rflts.simps(7) rflts_def_idiot2 rrexp.distinct(37))
+  by (metis distinct_removes_last(1) flts_append rflts.simps(1) rflts.simps(8) rflts_def_idiot2 rrexp.distinct(11) rrexp.distinct(39))
 
 (*some basic facts about rsimp*)
 

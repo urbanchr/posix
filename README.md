@@ -11,10 +11,6 @@ Tested with Isabelle2021-1.
 
 * PosixSpec.thy (contains values and POSIX definitions)
 
-* Positions.thy (shows the equivalence of our POSIX spec and the definition by Okui & Suzuki)
-
-* PDerivs.thy (Partial Derivatives according to Antimirov, size bounds of pderivs)
-
 * Lexer.thy (first algorithm by Sulzmann & Lu without simplification)
 
 * LexerSimp.thy (correctness for simple-minded simplification rules)

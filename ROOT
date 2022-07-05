@@ -3,8 +3,6 @@ theories[document = false]
      "HOL-Library.Sublist"
      "RegLangs"
      "PosixSpec"
-     "Positions"
-     "PDerivs"
      "Lexer"
      "LexerSimp"
      "Blexer"
@@ -12,5 +10,5 @@ theories[document = false]
      "BasicIdentities"
      "ClosedForms"
      "GeneralRegexBound"
-     "ClosedFormsBounds"
-     "FBound"
+     (*"ClosedFormsBounds"
+     "FBound"*)

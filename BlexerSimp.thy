@@ -18,6 +18,7 @@ fun eq1 ("_ ~1 _" [80, 80] 80) where
 | "(AALTs bs1 []) ~1 (AALTs bs2 []) = True"
 | "(AALTs bs1 (r1 # rs1)) ~1 (AALTs bs2 (r2 # rs2)) = (r1 ~1 r2 \<and> (AALTs bs1 rs1) ~1 (AALTs bs2 rs2))"
 | "(ASTAR bs1 r1) ~1 (ASTAR bs2 r2) = r1 ~1 r2"
+| "(ANTIMES bs1 r1 n1) ~1 (ANTIMES bs2 r2 n2) = (r1 ~1 r2 \<and> n1 = n2)"
 | "_ ~1 _ = False"
 
 
@@ -102,7 +103,12 @@ lemma bmkeps_fuse:
   assumes "bnullable r"
   shows "bmkeps (fuse bs r) = bs @ bmkeps r"
   using assms
-  by (induct r rule: bnullable.induct) (auto)
+  apply(induct r rule: bnullable.induct) 
+        apply(auto)
+  apply (metis append.assoc bmkeps_retrieve bmkeps_retrieve_AALTs bnullable.simps(4))  
+   apply(case_tac n)
+  apply(auto)
+  done
 
 lemma bmkepss_fuse: 
   assumes "bnullables rs"
@@ -363,7 +369,9 @@ lemma fltsfrewrites: "rs s\<leadsto>* flts rs"
   using rs1 srewrites7 apply presburger
   using srewrites7 apply force
   apply (simp add: srewrites7)
+   apply(simp add: srewrites7)
   by (simp add: srewrites7)
+  
 
 lemma bnullable0:
 shows "r1 \<leadsto> r2 \<Longrightarrow> bnullable r1 = bnullable r2" 
@@ -398,11 +406,21 @@ next
 next
   case (ss5 bs1 rs1 rsb)
   then show ?case
-    by (simp add: bmkepss1 bmkepss2 bmkepss_fuse bnullable_fuse)
+    apply (simp add: bmkepss1 bmkepss2 bmkepss_fuse bnullable_fuse)
+    apply(case_tac rs1)
+     apply(auto simp add: bnullable_fuse)
+    apply (metis bmkeps_retrieve bmkeps_retrieve_AALTs bnullable.simps(4))
+    apply (metis bmkeps_retrieve bmkeps_retrieve_AALTs bnullable.simps(4))
+    apply (metis bmkeps_retrieve bmkeps_retrieve_AALTs bnullable.simps(4))
+    by (metis bmkeps_retrieve bmkeps_retrieve_AALTs bnullable.simps(4))    
 next
   case (ss6 a1 a2 rsa rsb rsc)
   then show ?case
     by (smt (verit, best) Nil_is_append_conv bmkepss1 bmkepss2 bnullable_correctness in_set_conv_decomp list.distinct(1) list.set_intros(1) nullable_correctness set_ConsD subsetD)
+next
+  case (bs10 rs1 rs2 bs)
+  then show ?case
+    by (metis bmkeps_retrieve bmkeps_retrieve_AALTs bnullable.simps(4)) 
 qed (auto)
 
 lemma rewrites_bmkeps: 

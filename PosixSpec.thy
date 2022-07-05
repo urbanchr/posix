@@ -46,6 +46,9 @@ where
 | "\<Turnstile> Void : ONE"
 | "\<Turnstile> Char c : CH c"
 | "\<forall>v \<in> set vs. \<Turnstile> v : r \<and> flat v \<noteq> [] \<Longrightarrow> \<Turnstile> Stars vs : STAR r"
+| "\<lbrakk>\<forall>v \<in> set vs1. \<Turnstile> v : r \<and> flat v \<noteq> []; 
+    \<forall>v \<in> set vs2. \<Turnstile> v : r \<and> flat v = []; 
+    length (vs1 @ vs2) = n\<rbrakk> \<Longrightarrow> \<Turnstile> Stars (vs1 @ vs2) : NTIMES r n"   
 
 inductive_cases Prf_elims:
   "\<Turnstile> v : ZERO"
@@ -54,6 +57,7 @@ inductive_cases Prf_elims:
   "\<Turnstile> v : ONE"
   "\<Turnstile> v : CH c"
   "\<Turnstile> vs : STAR r"
+  "\<Turnstile> vs : NTIMES r n"
 
 lemma Prf_Stars_appendE:
   assumes "\<Turnstile> Stars (vs1 @ vs2) : STAR r"
@@ -61,6 +65,28 @@ lemma Prf_Stars_appendE:
 using assms
 by (auto intro: Prf.intros elim!: Prf_elims)
 
+lemma Pow_cstring:
+  fixes A::"string set"
+  assumes "s \<in> A ^^ n"
+  shows "\<exists>ss1 ss2. concat (ss1 @ ss2) = s \<and> length (ss1 @ ss2) = n \<and> 
+         (\<forall>s \<in> set ss1. s \<in> A \<and> s \<noteq> []) \<and> (\<forall>s \<in> set ss2. s \<in> A \<and> s = [])"
+using assms
+apply(induct n arbitrary: s)
+  apply(auto)[1]
+  apply(auto simp add: Sequ_def)
+  apply(drule_tac x="s2" in meta_spec)
+  apply(simp)
+apply(erule exE)+
+  apply(clarify)
+apply(case_tac "s1 = []")
+apply(simp)
+apply(rule_tac x="ss1" in exI)
+apply(rule_tac x="s1 # ss2" in exI)
+apply(simp)
+apply(rule_tac x="s1 # ss1" in exI)
+apply(rule_tac x="ss2" in exI)
+  apply(simp)
+  done
 
 lemma flats_Prf_value:
   assumes "\<forall>s\<in>set ss. \<exists>v. s = flat v \<and> \<Turnstile> v : r"
@@ -75,15 +101,48 @@ apply(rule_tac x="vs" in exI)
 apply(simp)
 apply(rule_tac x="v#vs" in exI)
 apply(simp)
-done
+  done
 
+lemma Aux:
+  assumes "\<forall>s\<in>set ss. s = []"
+  shows "concat ss = []"
+using assms
+by (induct ss) (auto)
+
+lemma flats_cval:
+  assumes "\<forall>s\<in>set ss. \<exists>v. s = flat v \<and> \<Turnstile> v : r"
+  shows "\<exists>vs1 vs2. flats (vs1 @ vs2) = concat ss \<and> length (vs1 @ vs2) = length ss \<and> 
+          (\<forall>v\<in>set vs1. \<Turnstile> v : r \<and> flat v \<noteq> []) \<and>
+          (\<forall>v\<in>set vs2. \<Turnstile> v : r \<and> flat v = [])"
+using assms
+apply(induct ss rule: rev_induct)
+apply(rule_tac x="[]" in exI)+
+apply(simp)
+apply(simp)
+apply(clarify)
+apply(case_tac "flat v = []")
+apply(rule_tac x="vs1" in exI)
+apply(rule_tac x="v#vs2" in exI)
+apply(simp)
+apply(rule_tac x="vs1 @ [v]" in exI)
+apply(rule_tac x="vs2" in exI)
+apply(simp)
+by (simp add: Aux)
+
+lemma pow_Prf:
+  assumes "\<forall>v\<in>set vs. \<Turnstile> v : r \<and> flat v \<in> A"
+  shows "flats vs \<in> A ^^ (length vs)"
+  using assms
+  by (induct vs) (auto)
 
 lemma L_flat_Prf1:
   assumes "\<Turnstile> v : r" 
   shows "flat v \<in> L r"
-using assms
-by (induct) (auto simp add: Sequ_def Star_concat)
-
+  using assms
+  apply (induct v r rule: Prf.induct) 
+  apply(auto simp add: Sequ_def Star_concat lang_pow_add)
+  by (metis pow_Prf)
+  
 lemma L_flat_Prf2:
   assumes "s \<in> L r" 
   shows "\<exists>v. \<Turnstile> v : r \<and> flat v = s"
@@ -105,7 +164,30 @@ next
 next
   case (ALT r1 r2 s)
   then show "\<exists>v. \<Turnstile> v : ALT r1 r2 \<and> flat v = s"
-  unfolding L.simps by (fastforce intro: Prf.intros)
+    unfolding L.simps by (fastforce intro: Prf.intros)
+next
+  case (NTIMES r n)
+  have IH: "\<And>s. s \<in> L r \<Longrightarrow> \<exists>v. \<Turnstile> v : r \<and> flat v = s" by fact
+  have "s \<in> L (NTIMES r n)" by fact
+  then obtain ss1 ss2 where "concat (ss1 @ ss2) = s" "length (ss1 @ ss2) = n" 
+    "\<forall>s \<in> set ss1. s \<in> L r \<and> s \<noteq> []" "\<forall>s \<in> set ss2. s \<in> L r \<and> s = []"
+  using Pow_cstring by force
+  then obtain vs1 vs2 where "flats (vs1 @ vs2) = s" "length (vs1 @ vs2) = n" 
+      "\<forall>v\<in>set vs1. \<Turnstile> v : r \<and> flat v \<noteq> []" "\<forall>v\<in>set vs2. \<Turnstile> v : r \<and> flat v = []"
+    using IH flats_cval 
+  apply -
+  apply(drule_tac x="ss1 @ ss2" in meta_spec)
+  apply(drule_tac x="r" in meta_spec)
+  apply(drule meta_mp)
+  apply(simp)
+  apply (metis Un_iff)
+  apply(clarify)
+  apply(drule_tac x="vs1" in meta_spec)
+  apply(drule_tac x="vs2" in meta_spec)
+  apply(simp)
+  done
+  then show "\<exists>v. \<Turnstile> v : NTIMES r n \<and> flat v = s"
+  using Prf.intros(7) flat_Stars by blast
 qed (auto intro: Prf.intros)
 
 
@@ -130,9 +212,11 @@ lemma LV_simps:
   and   "LV ONE s = (if s = [] then {Void} else {})"
   and   "LV (CH c) s = (if s = [c] then {Char c} else {})"
   and   "LV (ALT r1 r2) s = Left ` LV r1 s \<union> Right ` LV r2 s"
+  and   "LV (NTIMES r 0) s = (if s = [] then {Stars []} else {})"
 unfolding LV_def
-by (auto intro: Prf.intros elim: Prf.cases)
-
+  apply (auto intro: Prf.intros elim: Prf.cases)
+  by (metis Prf.intros(7) append.right_neutral empty_iff list.set(1) list.size(3))
+  
 
 abbreviation
   "Prefixes s \<equiv> {s'. prefix s' s}"
@@ -173,6 +257,64 @@ proof -
    by (auto)(metis rev_append rev_rev_ident)+
   ultimately show "finite (Prefixes s)" by simp
 qed
+
+definition
+  "Stars_Append Vs1 Vs2 \<equiv> {Stars (vs1 @ vs2) | vs1 vs2. Stars vs1 \<in> Vs1 \<and> Stars vs2 \<in> Vs2}"
+
+lemma finite_Stars_Append:
+  assumes "finite Vs1" "finite Vs2"
+  shows "finite (Stars_Append Vs1 Vs2)"
+  using assms  
+proof -
+  define UVs1 where "UVs1 \<equiv> Stars -` Vs1"
+  define UVs2 where "UVs2 \<equiv> Stars -` Vs2"  
+  from assms have "finite UVs1" "finite UVs2"
+    unfolding UVs1_def UVs2_def
+    by(simp_all add: finite_vimageI inj_on_def) 
+  then have "finite ((\<lambda>(vs1, vs2). Stars (vs1 @ vs2)) ` (UVs1 \<times> UVs2))"
+    by simp
+  moreover 
+    have "Stars_Append Vs1 Vs2 = (\<lambda>(vs1, vs2). Stars (vs1 @ vs2)) ` (UVs1 \<times> UVs2)"
+    unfolding Stars_Append_def UVs1_def UVs2_def by auto    
+  ultimately show "finite (Stars_Append Vs1 Vs2)"   
+    by simp
+qed 
+
+lemma LV_NTIMES_subset:
+  "LV (NTIMES r n) s \<subseteq> Stars_Append (LV (STAR r) s) (\<Union>i\<le>n. LV (NTIMES r i) [])"
+apply(auto simp add: LV_def)
+apply(auto elim!: Prf_elims)
+  apply(auto simp add: Stars_Append_def)
+  apply(rule_tac x="vs1" in exI)
+  apply(rule_tac x="vs2" in exI)  
+  apply(auto)
+    using Prf.intros(6) apply(auto)
+      apply(rule_tac x="length vs2" in bexI)
+    thm Prf.intros
+      apply(subst append.simps(1)[symmetric])
+    apply(rule Prf.intros)
+      apply(auto)[1]
+      apply(auto)[1]
+     apply(simp)
+    apply(simp)
+    done
+
+lemma LV_NTIMES_Suc_empty:
+  shows "LV (NTIMES r (Suc n)) [] = 
+     (\<lambda>(v, vs). Stars (v#vs)) ` (LV r [] \<times> (Stars -` (LV (NTIMES r n) [])))"
+unfolding LV_def
+apply(auto elim!: Prf_elims simp add: image_def)
+apply(case_tac vs1)
+apply(auto)
+apply(case_tac vs2)
+apply(auto)
+apply(subst append.simps(1)[symmetric])
+apply(rule Prf.intros)
+apply(auto)
+apply(subst append.simps(1)[symmetric])
+apply(rule Prf.intros)
+apply(auto)
+  done 
 
 lemma LV_STAR_finite:
   assumes "\<forall>s. finite (LV r s)"
@@ -215,7 +357,22 @@ proof(induct s rule: length_induct)
   ultimately
   show "finite (LV (STAR r) s)" by (simp add: finite_subset)
 qed  
-    
+
+lemma finite_NTimes_empty:
+  assumes "\<And>s. finite (LV r s)" 
+  shows "finite (LV (NTIMES r n) [])"
+  using assms
+  apply(induct n)
+   apply(auto simp add: LV_simps)
+  apply(subst LV_NTIMES_Suc_empty)
+  apply(rule finite_imageI)
+  apply(rule finite_cartesian_product)
+  using assms apply simp 
+  apply(rule finite_vimageI)
+  apply(simp)
+  apply(simp add: inj_on_def)
+  done
+
 
 lemma LV_finite:
   shows "finite (LV r s)"
@@ -251,6 +408,15 @@ next
 next
   case (STAR r s)
   then show "finite (LV (STAR r) s)" by (simp add: LV_STAR_finite)
+next
+  case (NTIMES r n s)
+  have "\<And>s. finite (LV r s)" by fact
+  then have "finite (Stars_Append (LV (STAR r) s) (\<Union>i\<le>n. LV (NTIMES r i) []))" 
+    apply(rule_tac finite_Stars_Append)
+     apply (simp add: LV_STAR_finite)
+    using finite_NTimes_empty by blast
+  then show "finite (LV (NTIMES r n) s)"
+    by (metis LV_NTIMES_subset finite_subset)
 qed
 
 
@@ -271,6 +437,11 @@ where
     \<not>(\<exists>s\<^sub>3 s\<^sub>4. s\<^sub>3 \<noteq> [] \<and> s\<^sub>3 @ s\<^sub>4 = s2 \<and> (s1 @ s\<^sub>3) \<in> L r \<and> s\<^sub>4 \<in> L (STAR r))\<rbrakk>
     \<Longrightarrow> (s1 @ s2) \<in> STAR r \<rightarrow> Stars (v # vs)"
 | Posix_STAR2: "[] \<in> STAR r \<rightarrow> Stars []"
+| Posix_NTIMES1: "\<lbrakk>s1 \<in> r \<rightarrow> v; s2 \<in> NTIMES r (n - 1) \<rightarrow> Stars vs; flat v \<noteq> []; 0 < n;
+    \<not>(\<exists>s\<^sub>3 s\<^sub>4. s\<^sub>3 \<noteq> [] \<and> s\<^sub>3 @ s\<^sub>4 = s2 \<and> (s1 @ s\<^sub>3) \<in> L r \<and> s\<^sub>4 \<in> L (NTIMES r (n - 1)))\<rbrakk>
+    \<Longrightarrow> (s1 @ s2) \<in> NTIMES r n \<rightarrow> Stars (v # vs)"
+| Posix_NTIMES2: "\<lbrakk>\<forall>v \<in> set vs. [] \<in> r \<rightarrow> v; length vs = n\<rbrakk>
+    \<Longrightarrow> [] \<in> NTIMES r n \<rightarrow> Stars vs"  
 
 inductive_cases Posix_elims:
   "s \<in> ZERO \<rightarrow> v"
@@ -279,18 +450,46 @@ inductive_cases Posix_elims:
   "s \<in> ALT r1 r2 \<rightarrow> v"
   "s \<in> SEQ r1 r2 \<rightarrow> v"
   "s \<in> STAR r \<rightarrow> v"
+  "s \<in> NTIMES r n \<rightarrow> v"
 
 lemma Posix1:
   assumes "s \<in> r \<rightarrow> v"
   shows "s \<in> L r" "flat v = s"
 using assms
-  by(induct s r v rule: Posix.induct)
-    (auto simp add: Sequ_def)
+  apply(induct s r v rule: Posix.induct)
+  apply(auto simp add: pow_empty_iff)
+  apply (metis Suc_pred concI lang_pow.simps(2))
+  by (meson ex_in_conv set_empty)
+
+lemma Posix1a:
+  assumes "s \<in> r \<rightarrow> v"
+  shows "\<Turnstile> v : r"
+using assms
+  apply(induct s r v rule: Posix.induct)
+  apply(auto intro: Prf.intros)
+  apply (metis Prf.intros(6) Prf_elims(6) set_ConsD val.inject(5))
+  prefer 2
+  apply (metis Posix1(2) Prf.intros(7) append_Nil empty_iff list.set(1))
+  apply(erule Prf_elims)
+  apply(auto)
+  apply(subst append.simps(2)[symmetric])
+  apply(rule Prf.intros)
+  apply(auto)
+  done
 
 text \<open>
   For a give value and string, our Posix definition 
   determines a unique value.
 \<close>
+
+lemma List_eq_zipI:
+  assumes "list_all2 (\<lambda>v1 v2. v1 = v2) vs1 vs2" 
+  and "length vs1 = length vs2"
+  shows "vs1 = vs2"  
+ using assms
+  apply(induct vs1 vs2 rule: list_all2_induct)
+  apply(auto)
+  done 
 
 lemma Posix_determ:
   assumes "s \<in> r \<rightarrow> v1" "s \<in> r \<rightarrow> v2"
@@ -356,6 +555,29 @@ next
   case (Posix_STAR2 r v2)
   have "[] \<in> STAR r \<rightarrow> v2" by fact
   then show "Stars [] = v2" by cases (auto simp add: Posix1)
+next
+  case (Posix_NTIMES2 vs r n v2)
+  then show "Stars vs = v2"
+    apply(erule_tac Posix_elims)
+    apply(auto)
+    apply (simp add: Posix1(2))  
+    apply(rule List_eq_zipI)
+     apply(auto simp add: list_all2_iff)
+    by (meson in_set_zipE)
+next
+  case (Posix_NTIMES1 s1 r v s2 n vs)
+  have "(s1 @ s2) \<in> NTIMES r n \<rightarrow> v2" 
+       "s1 \<in> r \<rightarrow> v" "s2 \<in> NTIMES r (n - 1) \<rightarrow> Stars vs" "flat v \<noteq> []"
+       "\<not> (\<exists>s\<^sub>3 s\<^sub>4. s\<^sub>3 \<noteq> [] \<and> s\<^sub>3 @ s\<^sub>4 = s2 \<and> s1 @ s\<^sub>3 \<in> L r \<and> s\<^sub>4 \<in> L (NTIMES r (n - 1 )))" by fact+
+  then obtain v' vs' where "v2 = Stars (v' # vs')" "s1 \<in> r \<rightarrow> v'" "s2 \<in> (NTIMES r (n - 1)) \<rightarrow> (Stars vs')"
+  apply(cases) apply (auto simp add: append_eq_append_conv2)
+    using Posix1(1) apply fastforce
+    apply (metis One_nat_def Posix1(1) Posix_NTIMES1.hyps(7) append.right_neutral append_self_conv2)
+  using Posix1(2) by blast
+  moreover
+  have IHs: "\<And>v2. s1 \<in> r \<rightarrow> v2 \<Longrightarrow> v = v2"
+            "\<And>v2. s2 \<in> NTIMES r (n - 1) \<rightarrow> v2 \<Longrightarrow> Stars vs = v2" by fact+
+  ultimately show "Stars (v # vs) = v2" by auto
 qed
 
 
@@ -368,13 +590,9 @@ lemma Posix_LV:
   shows "v \<in> LV r s"
   using assms unfolding LV_def
   apply(induct rule: Posix.induct)
-  apply(auto simp add: intro!: Prf.intros elim!: Prf_elims)
-  done
+   apply(auto simp add: intro!: Prf.intros elim!: Prf_elims Posix1a)
+   apply (smt (verit, best) One_nat_def Posix1a Posix_NTIMES1 L.simps(7))
+  using Posix1a Posix_NTIMES2 by blast
 
-lemma Posix_Prf:
-  assumes "s \<in> r \<rightarrow> v"
-  shows "\<Turnstile> v : r"
-  using assms Posix_LV LV_def
-  by simp
 
 end

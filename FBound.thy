@@ -18,6 +18,7 @@ where
 | "rerase (AALTs bs rs) = RALTS (map rerase rs)"
 | "rerase (ASEQ _ r1 r2) = RSEQ (rerase r1) (rerase r2)"
 | "rerase (ASTAR _ r) = RSTAR (rerase r)"
+| "rerase (ANTIMES _ r n) = RNTIMES (rerase r) n"
 
 lemma eq1_rerase:
   shows "x ~1 y \<longleftrightarrow> (rerase x) = (rerase y)"

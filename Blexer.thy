@@ -1,6 +1,6 @@
 
 theory Blexer
-  imports "Lexer" "PDerivs"
+  imports "Lexer"
 begin
 
 section \<open>Bit-Encodings\<close>
@@ -17,13 +17,22 @@ where
 | "code (Stars []) = [S]"
 | "code (Stars (v # vs)) =  (Z # code v) @ code (Stars vs)"
 
+fun sz where
+  "sz ZERO = 0"
+| "sz ONE = 0"
+| "sz (CH _) = 0"
+| "sz (SEQ r1 r2) = 1 + sz r1 + sz r2"
+| "sz (ALT r1 r2) = 1 + sz r1 + sz r2"
+| "sz (STAR r) = 1 + sz r"
+| "sz (NTIMES r n) = 1 + n + sz r"
+
 
 fun 
   Stars_add :: "val \<Rightarrow> val \<Rightarrow> val"
 where
   "Stars_add v (Stars vs) = Stars (v # vs)"
 
-function
+function (sequential)
   decode' :: "bit list \<Rightarrow> rexp \<Rightarrow> (val * bit list)"
 where
   "decode' bs ZERO = (undefined, bs)"
@@ -39,6 +48,12 @@ where
 | "decode' (Z # bs) (STAR r) = (let (v, bs') = decode' bs r in
                                     let (vs, bs'') = decode' bs' (STAR r) 
                                     in (Stars_add v vs, bs''))"
+| "decode' [] (NTIMES r n) = (Void, [])"
+| "decode' (S # bs) (NTIMES r n) = (Stars [], bs)"
+(*| "decode' (Z # bs) (NTIMES r 0) = (undefined, bs)"*)
+| "decode' (Z # bs) (NTIMES r n) = (let (v, bs') = decode' bs r in
+                                    let (vs, bs'') = decode' bs' (NTIMES r (n - 1)) 
+                                    in (Stars_add v vs, bs''))"
 by pat_completeness auto
 
 lemma decode'_smaller:
@@ -48,12 +63,15 @@ using assms
 apply(induct bs r)
 apply(auto simp add: decode'.psimps split: prod.split)
 using dual_order.trans apply blast
-by (meson dual_order.trans le_SucI)
+apply (meson dual_order.trans le_SucI)
+  apply (meson le_SucI le_trans)
+  done
 
 termination "decode'"  
-apply(relation "inv_image (measure(%cs. size cs) <*lex*> measure(%s. size s)) (%(ds,r). (r,ds))") 
+apply(relation "inv_image (measure(%cs. sz cs) <*lex*> measure(%s. size s)) (%(ds,r). (r,ds))") 
 apply(auto dest!: decode'_smaller)
-by (metis less_Suc_eq_le snd_conv)
+   apply (metis less_Suc_eq_le snd_conv)
+  by (metis less_Suc_eq_le snd_conv)
 
 definition
   decode :: "bit list \<Rightarrow> rexp \<Rightarrow> val option"
@@ -69,13 +87,23 @@ lemma decode'_code_Stars:
   apply(auto)
   done
 
+lemma decode'_code_NTIMES:
+  assumes "\<forall>v\<in>set vs. \<Turnstile> v : r \<and> (\<forall>x. decode' (code v @ x) r = (v, x))" 
+  shows "decode' (code (Stars vs) @ ds) (NTIMES r n) = (Stars vs, ds)"
+  using assms
+  apply(induct vs arbitrary: n r ds)
+   apply(auto)
+  done
+
+
 lemma decode'_code:
   assumes "\<Turnstile> v : r"
   shows "decode' ((code v) @ ds) r = (v, ds)"
 using assms
   apply(induct v r arbitrary: ds) 
   apply(auto)
-  using decode'_code_Stars by blast
+  using decode'_code_Stars apply blast
+   by (metis Un_iff decode'_code_NTIMES set_append)  
 
 lemma decode_code:
   assumes "\<Turnstile> v : r"
@@ -93,6 +121,7 @@ datatype arexp =
 | ASEQ "bit list" arexp arexp
 | AALTs "bit list" "arexp list"
 | ASTAR "bit list" arexp
+| ANTIMES "bit list" arexp nat
 
 abbreviation
   "AALT bs r1 r2 \<equiv> AALTs bs [r1, r2]"
@@ -104,6 +133,7 @@ fun asize :: "arexp \<Rightarrow> nat" where
 | "asize (AALTs cs rs) = Suc (sum_list (map asize rs))"
 | "asize (ASEQ cs r1 r2) = Suc (asize r1 + asize r2)"
 | "asize (ASTAR cs r) = Suc (asize r)"
+| "asize (ANTIMES cs r n) = Suc (asize r) + n"
 
 fun 
   erase :: "arexp \<Rightarrow> rexp"
@@ -116,6 +146,7 @@ where
 | "erase (AALTs bs (r#rs)) = ALT (erase r) (erase (AALTs bs rs))"
 | "erase (ASEQ _ r1 r2) = SEQ (erase r1) (erase r2)"
 | "erase (ASTAR _ r) = STAR (erase r)"
+| "erase (ANTIMES _ r n) = NTIMES (erase r) n"
 
 
 fun fuse :: "bit list \<Rightarrow> arexp \<Rightarrow> arexp" where
@@ -125,6 +156,7 @@ fun fuse :: "bit list \<Rightarrow> arexp \<Rightarrow> arexp" where
 | "fuse bs (AALTs cs rs) = AALTs (bs @ cs) rs"
 | "fuse bs (ASEQ cs r1 r2) = ASEQ (bs @ cs) r1 r2"
 | "fuse bs (ASTAR cs r) = ASTAR (bs @ cs) r"
+| "fuse bs (ANTIMES cs r n) = ANTIMES (bs @ cs) r n"
 
 lemma fuse_append:
   shows "fuse (bs1 @ bs2) r = fuse bs1 (fuse bs2 r)"
@@ -141,6 +173,7 @@ fun intern :: "rexp \<Rightarrow> arexp" where
                                 (fuse [S]  (intern r2))"
 | "intern (SEQ r1 r2) = ASEQ [] (intern r1) (intern r2)"
 | "intern (STAR r) = ASTAR [] (intern r)"
+| "intern (NTIMES r n) = ANTIMES [] (intern r) n"
 
 
 fun retrieve :: "arexp \<Rightarrow> val \<Rightarrow> bit list" where
@@ -153,7 +186,9 @@ fun retrieve :: "arexp \<Rightarrow> val \<Rightarrow> bit list" where
 | "retrieve (ASTAR bs r) (Stars []) = bs @ [S]"
 | "retrieve (ASTAR bs r) (Stars (v#vs)) = 
      bs @ [Z] @ retrieve r v @ retrieve (ASTAR [] r) (Stars vs)"
-
+| "retrieve (ANTIMES bs r 0) (Stars []) = bs @ [S]"
+| "retrieve (ANTIMES bs r (Suc n)) (Stars (v#vs)) = 
+     bs @ [Z] @ retrieve r v @ retrieve (ANTIMES [] r n) (Stars vs)"
 
 
 fun
@@ -165,27 +200,44 @@ where
 | "bnullable (AALTs bs rs) = (\<exists>r \<in> set rs. bnullable r)"
 | "bnullable (ASEQ bs r1 r2) = (bnullable r1 \<and> bnullable r2)"
 | "bnullable (ASTAR bs r) = True"
+| "bnullable (ANTIMES bs r n) = (if n  = 0 then True else bnullable r)"
 
 abbreviation
   bnullables :: "arexp list \<Rightarrow> bool"
 where
   "bnullables rs \<equiv> (\<exists>r \<in> set rs. bnullable r)"
 
-fun 
-  bmkeps :: "arexp \<Rightarrow> bit list" and
-  bmkepss :: "arexp list \<Rightarrow> bit list"
+function (sequential)
+  bmkeps :: "arexp \<Rightarrow> bit list" 
 where
   "bmkeps(AONE bs) = bs"
 | "bmkeps(ASEQ bs r1 r2) = bs @ (bmkeps r1) @ (bmkeps r2)"
-| "bmkeps(AALTs bs rs) = bs @ (bmkepss rs)"
+| "bmkeps(AALTs bs (r#rs)) = 
+    (if bnullable(r) then (bs @ bmkeps r) else (bmkeps (AALTs bs rs)))"
 | "bmkeps(ASTAR bs r) = bs @ [S]"
-| "bmkepss (r # rs) = (if bnullable(r) then (bmkeps r) else (bmkepss rs))"
+| "bmkeps(ANTIMES bs r 0) = bs @ [S]"
+| "bmkeps(ANTIMES bs r (Suc n)) = bs @ [Z] @ (bmkeps r) @ bmkeps(ANTIMES [] r n)"
+apply(pat_completeness)
+apply(auto)
+done
+
+termination "bmkeps"  
+apply(relation "measure asize") 
+        apply(auto)
+  using asize.elims by force
+
+fun
+   bmkepss :: "arexp list \<Rightarrow> bit list"
+where
+  "bmkepss (r # rs) = (if bnullable(r) then (bmkeps r) else (bmkepss rs))"
+
 
 lemma bmkepss1:
   assumes "\<not> bnullables rs1"
   shows "bmkepss (rs1 @ rs2) = bmkepss rs2"
   using assms
-  by (induct rs1) (auto)
+  by(induct rs1) (auto)
+  
 
 lemma bmkepss2:
   assumes "bnullables rs1"
@@ -206,7 +258,7 @@ where
       then AALT bs (ASEQ [] (bder c r1) r2) (fuse (bmkeps r1) (bder c r2))
       else ASEQ bs (bder c r1) r2)"
 | "bder c (ASTAR bs r) = ASEQ (bs @ [Z]) (bder c r) (ASTAR [] r)"
-
+| "bder c (ANTIMES bs r n) = (if n = 0 then AZERO else ASEQ (bs @ [Z]) (bder c r) (ANTIMES [] r (n - 1)))"
 
 fun 
   bders :: "arexp \<Rightarrow> string \<Rightarrow> arexp"
@@ -264,6 +316,15 @@ lemma retrieve_encode_STARS:
   apply(simp_all)
   done
 
+lemma retrieve_encode_NTIMES:
+  assumes "\<forall>v\<in>set vs. \<Turnstile> v : r \<and> code v = retrieve (intern r) v" "length vs = n"
+  shows "code (Stars vs) = retrieve (ANTIMES [] (intern r) n) (Stars vs)"
+  using assms
+  apply(induct vs arbitrary: n)
+   apply(simp_all)
+  by force
+
+
 lemma retrieve_fuse2:
   assumes "\<Turnstile> v : (erase r)"
   shows "retrieve (fuse bs r) v = bs @ retrieve r v"
@@ -285,7 +346,13 @@ lemma retrieve_fuse2:
   apply(auto elim!: Prf_elims)[1]
   apply(case_tac vs)
   apply(simp)
-  apply(simp)
+   apply(simp)
+  (* NTIMES *)
+  apply(auto elim!: Prf_elims)[1]
+  apply(case_tac vs1)
+   apply(simp_all)
+  apply(case_tac vs2)
+   apply(simp_all)
   done
 
 lemma retrieve_fuse:
@@ -300,8 +367,11 @@ lemma retrieve_code:
   shows "code v = retrieve (intern r) v"
   using assms
   apply(induct v r )
-  apply(simp_all add: retrieve_fuse retrieve_encode_STARS)
-  done
+        apply(simp_all add: retrieve_fuse retrieve_encode_STARS)
+  apply(subst retrieve_encode_NTIMES)
+    apply(auto)
+  done 
+ 
 
 
 lemma retrieve_AALTs_bnullable1:
@@ -340,14 +410,26 @@ lemma bmkeps_retrieve_AALTs:
   apply (simp add: retrieve_AALTs_bnullable1)
   by (metis retrieve_AALTs_bnullable2)
 
-    
+lemma bmkeps_retrieve_ANTIMES: 
+  assumes "if n = 0 then True else bmkeps r = retrieve r (mkeps (erase r))" 
+  and     "bnullable (ANTIMES bs r n)"
+  shows "bmkeps (ANTIMES bs r n) = retrieve (ANTIMES bs r n) (Stars (replicate n (mkeps (erase r))))"
+ using assms
+  apply(induct n arbitrary: r bs)
+  apply(auto)[1]
+  apply(simp)
+  done
+
 lemma bmkeps_retrieve:
   assumes "bnullable r"
   shows "bmkeps r = retrieve r (mkeps (erase r))"
   using assms
-  apply(induct r)
-  apply(auto)  
-  using bmkeps_retrieve_AALTs by auto
+  apply(induct r rule: bmkeps.induct)
+        apply(auto)
+  apply (simp add: retrieve_AALTs_bnullable1)
+  using retrieve_AALTs_bnullable1 apply force
+  by (metis retrieve_AALTs_bnullable2)  
+  
 
 lemma bder_retrieve:
   assumes "\<Turnstile> v : der c (erase r)"
@@ -388,7 +470,15 @@ lemma bder_retrieve:
   apply(clarify)
   apply(erule Prf_elims)
   apply(clarify)
-  by (simp add: retrieve_fuse2)
+   apply (simp add: retrieve_fuse2)
+  (* ANTIMES case *)
+  apply(auto)  
+  apply(erule Prf_elims)
+  apply(erule Prf_elims)
+  apply(clarify)
+  apply(erule Prf_elims)
+  apply(clarify)
+  by (metis (full_types) Suc_pred append_assoc injval.simps(8) retrieve.simps(10) retrieve.simps(6))
 
 
 lemma MAIN_decode:

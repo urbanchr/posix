@@ -3,7 +3,7 @@ theory Lexer
   imports PosixSpec 
 begin
 
-section {* The Lexer Functions by Sulzmann and Lu  (without simplification) *}
+section \<open>The Lexer Functions by Sulzmann and Lu  (without simplification)\<close>
 
 fun 
   mkeps :: "rexp \<Rightarrow> val"
@@ -12,6 +12,7 @@ where
 | "mkeps(SEQ r1 r2) = Seq (mkeps r1) (mkeps r2)"
 | "mkeps(ALT r1 r2) = (if nullable(r1) then Left (mkeps r1) else Right (mkeps r2))"
 | "mkeps(STAR r) = Stars []"
+| "mkeps(NTIMES r n) = Stars (replicate n (mkeps r))" 
 
 fun injval :: "rexp \<Rightarrow> char \<Rightarrow> val \<Rightarrow> val"
 where
@@ -22,6 +23,7 @@ where
 | "injval (SEQ r1 r2) c (Left (Seq v1 v2)) = Seq (injval r1 c v1) v2"
 | "injval (SEQ r1 r2) c (Right v2) = Seq (mkeps r1) (injval r2 c v2)"
 | "injval (STAR r) c (Seq v (Stars vs)) = Stars ((injval r c v) # vs)" 
+| "injval (NTIMES r n) c (Seq v (Stars vs)) = Stars ((injval r c v) # vs)" 
 
 fun 
   lexer :: "rexp \<Rightarrow> string \<Rightarrow> val option"
@@ -33,20 +35,32 @@ where
 
 
 
-section {* Mkeps, Injval Properties *}
-
-lemma mkeps_nullable:
-  assumes "nullable(r)" 
-  shows "\<Turnstile> mkeps r : r"
-using assms
-by (induct rule: nullable.induct) 
-   (auto intro: Prf.intros)
+section \<open>Mkeps, Injval Properties\<close>
 
 lemma mkeps_flat:
   assumes "nullable(r)" 
   shows "flat (mkeps r) = []"
 using assms
-by (induct rule: nullable.induct) (auto)
+  by (induct rule: mkeps.induct) (auto)
+
+lemma Prf_NTimes_empty:
+  assumes "\<forall>v \<in> set vs. \<Turnstile> v : r \<and> flat v = []" 
+  and     "length vs = n"
+  shows "\<Turnstile> Stars vs : NTIMES r n"
+  using assms
+  by (metis Prf.intros(7) empty_iff eq_Nil_appendI list.set(1))
+  
+
+lemma mkeps_nullable:
+  assumes "nullable(r)" 
+  shows "\<Turnstile> mkeps r : r"
+using assms
+  apply (induct rule: mkeps.induct) 
+  apply(auto intro: Prf.intros split: if_splits)
+  apply (metis Prf.intros(7) append_is_Nil_conv empty_iff list.set(1) list.size(3))
+  apply(rule Prf_NTimes_empty)
+  apply(auto simp add: mkeps_flat) 
+  done
 
 lemma Prf_injval_flat:
   assumes "\<Turnstile> v : der c r" 
@@ -62,14 +76,20 @@ lemma Prf_injval:
 using assms
 apply(induct r arbitrary: c v rule: rexp.induct)
 apply(auto intro!: Prf.intros mkeps_nullable elim!: Prf_elims split: if_splits)
+(* Star *)
 apply(simp add: Prf_injval_flat)
-done
+(* NTimes *)
+  apply(case_tac x2)
+    apply(simp)
+  apply(simp)
+  apply(subst append.simps(2)[symmetric])
+  apply(rule Prf.intros)
+  apply(auto simp add: Prf_injval_flat)
+  done
 
 
+text \<open>Mkeps and injval produce, or preserve, Posix values.\<close>
 
-text {*
-  Mkeps and injval produce, or preserve, Posix values.
-*}
 
 lemma Posix_mkeps:
   assumes "nullable r"
@@ -80,7 +100,7 @@ apply(auto intro: Posix.intros simp add: nullable_correctness Sequ_def)
 apply(subst append.simps(1)[symmetric])
 apply(rule Posix.intros)
 apply(auto)
-done
+by (simp add: Posix_NTIMES2 pow_empty_iff)
 
 lemma Posix_injval:
   assumes "s \<in> (der c r) \<rightarrow> v"
@@ -228,11 +248,60 @@ next
         ultimately 
         have "((c # s1) @ s2) \<in> STAR r \<rightarrow> Stars (injval r c v1 # vs)" by (rule Posix.intros)
         then show "(c # s) \<in> STAR r \<rightarrow> injval (STAR r) c v" using cons by(simp)
-    qed
+      qed
+next
+  case (NTIMES r n)
+  have IH: "\<And>s v. s \<in> der c r \<rightarrow> v \<Longrightarrow> (c # s) \<in> r \<rightarrow> injval r c v" by fact
+  have "s \<in> der c (NTIMES r n) \<rightarrow> v" by fact
+  then consider
+      (cons) v1 vs s1 s2 where 
+        "v = Seq v1 (Stars vs)" "s = s1 @ s2" 
+        "s1 \<in> der c r \<rightarrow> v1" "s2 \<in> (NTIMES r (n - 1)) \<rightarrow> (Stars vs)" "0 < n"
+        "\<not> (\<exists>s\<^sub>3 s\<^sub>4. s\<^sub>3 \<noteq> [] \<and> s\<^sub>3 @ s\<^sub>4 = s2 \<and> s1 @ s\<^sub>3 \<in> L (der c r) \<and> s\<^sub>4 \<in> L (NTIMES r (n - 1)))" 
+    
+    apply(auto elim: Posix_elims simp add: der_correctness Der_def intro: Posix.intros split: if_splits)
+    apply(erule Posix_elims)
+    apply(simp)
+    apply(subgoal_tac "\<exists>vss. v2 = Stars vss")
+    apply(clarify)
+    apply(drule_tac x="vss" in meta_spec)
+    apply(drule_tac x="s1" in meta_spec)
+    apply(drule_tac x="s2" in meta_spec)
+     apply(simp add: der_correctness Der_def)
+    apply(erule Posix_elims)
+     apply(auto)
+      done
+    then show "(c # s) \<in> (NTIMES r n) \<rightarrow> injval (NTIMES r n) c v" 
+    proof (cases)
+      case cons
+          have "s1 \<in> der c r \<rightarrow> v1" by fact
+          then have "(c # s1) \<in> r \<rightarrow> injval r c v1" using IH by simp
+        moreover
+          have "s2 \<in> (NTIMES r (n - 1)) \<rightarrow> Stars vs" by fact
+        moreover 
+          have "(c # s1) \<in> r \<rightarrow> injval r c v1" by fact 
+          then have "flat (injval r c v1) = (c # s1)" by (rule Posix1)
+          then have "flat (injval r c v1) \<noteq> []" by simp
+        moreover 
+          have "\<not> (\<exists>s\<^sub>3 s\<^sub>4. s\<^sub>3 \<noteq> [] \<and> s\<^sub>3 @ s\<^sub>4 = s2 \<and> s1 @ s\<^sub>3 \<in> L (der c r) \<and> s\<^sub>4 \<in> L (NTIMES r (n - 1)))" by fact
+          then have "\<not> (\<exists>s\<^sub>3 s\<^sub>4. s\<^sub>3 \<noteq> [] \<and> s\<^sub>3 @ s\<^sub>4 = s2 \<and> (c # s1) @ s\<^sub>3 \<in> L r \<and> s\<^sub>4 \<in> L (NTIMES r (n - 1)))"
+            by (simp add: der_correctness Der_def)
+        ultimately 
+        have "((c # s1) @ s2) \<in> NTIMES r n \<rightarrow> Stars (injval r c v1 # vs)" 
+           apply (rule_tac Posix.intros)
+               apply(simp_all)
+              apply(case_tac n)
+            apply(simp)
+           using Posix_elims(1) NTIMES.prems apply auto[1]
+             apply(simp)
+             done
+        then show "(c # s) \<in> NTIMES r n \<rightarrow> injval (NTIMES r n) c v" using cons by(simp)
+      qed  
+
 qed
 
 
-section {* Lexer Correctness *}
+section \<open>Lexer Correctness\<close>
 
 
 lemma lexer_correct_None:
@@ -354,7 +423,8 @@ lemma injval_inj:
      apply(erule Prf_elims)
   apply(auto)
    apply (smt Prf_elims(6) injval.simps(7) list.inject val.inject(5))
-  by (smt Prf_elims(6) injval.simps(7) list.inject val.inject(5))
+  apply (smt Prf_elims(6) injval.simps(7) list.inject val.inject(5))
+  by (smt (verit, best) Prf_elims(1) Prf_elims(2) Prf_elims(7) injval.simps(8) list.inject val.simps(5))
   
   
 
@@ -375,7 +445,7 @@ lemma uu:
    apply (simp add: lexer_correctness(1))
   apply(subgoal_tac "\<Turnstile> a : (der c r)")
    prefer 2
-  using Posix_Prf apply blast
+  using Posix1a apply blast
   using injval_inj by blast
   
 
