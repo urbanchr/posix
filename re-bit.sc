@@ -23,6 +23,7 @@ case class CHAR(c: Char) extends Rexp
 case class ALT(r1: Rexp, r2: Rexp) extends Rexp 
 case class SEQ(r1: Rexp, r2: Rexp) extends Rexp 
 case class STAR(r: Rexp) extends Rexp 
+case class NTIMES(r: Rexp, n: Int) extends Rexp
 
 abstract class Bit
 case object Z extends Bit
@@ -38,6 +39,8 @@ case class ACHAR(bs: Bits, c: Char) extends ARexp
 case class AALTS(bs: Bits, rs: List[ARexp]) extends ARexp 
 case class ASEQ(bs: Bits, r1: ARexp, r2: ARexp) extends ARexp 
 case class ASTAR(bs: Bits, r: ARexp) extends ARexp 
+case class ANTIMES(bs: Bits, r: ARexp, n: Int) extends ARexp 
+
 
 // an abbreviation for binary alternatives
 def AALT(bs: Bits, r1: ARexp, r2: ARexp) = AALTS(bs, List(r1, r2))
@@ -86,8 +89,9 @@ def erase(r:ARexp): Rexp = r match{
   case AALTS(bs, r::Nil) => erase(r)
   case AALTS(bs, r::rs) => ALT(erase(r), erase(AALTS(bs, rs)))
   case ASEQ(bs, r1, r2) => SEQ (erase(r1), erase(r2))
-  case ASTAR(cs, ASTAR(ds, r))=> STAR(erase(r))
-  case ASTAR(cs, r)=> STAR(erase(r))
+  case ASTAR(cs, ASTAR(ds, r)) => STAR(erase(r))
+  case ASTAR(cs, r) => STAR(erase(r))
+  case ANTIMES(cs, r, n) => NTIMES(erase(r), n)
 }
 
 def fuse(bs: Bits, r: ARexp) : ARexp = r match {
@@ -97,6 +101,7 @@ def fuse(bs: Bits, r: ARexp) : ARexp = r match {
   case AALTS(cs, rs) => AALTS(bs ++ cs, rs)
   case ASEQ(cs, r1, r2) => ASEQ(bs ++ cs, r1, r2)
   case ASTAR(cs, r) => ASTAR(bs ++ cs, r)
+  case ANTIMES(cs, r, n) => ANTIMES(bs ++ cs, r, n)
 }
 
 def internalise(r: Rexp) : ARexp = r match {
@@ -107,6 +112,7 @@ def internalise(r: Rexp) : ARexp = r match {
 			        fuse(List(S), internalise(r2)))
   case SEQ(r1, r2) => ASEQ(Nil, internalise(r1), internalise(r2))
   case STAR(r) => ASTAR(Nil, internalise(r))
+  case NTIMES(r, n) => ANTIMES(Nil, internalise(r), n)
 }
 
 
@@ -134,6 +140,12 @@ def decode_aux(r: Rexp, bs: Bits) : (Val, Bits) = (r, bs) match {
     (Stars(v::vs), bs2)
   }
   case (STAR(_), S::bs) => (Stars(Nil), bs)
+  case (NTIMES(r1, n), Z::bs) => {
+    val (v, bs1) = decode_aux(r1, bs)
+    val (Stars(vs), bs2) = decode_aux(NTIMES(r1, n - 1), bs1)
+    (Stars(v::vs), bs2)
+  }
+  case (NTIMES(_, _), S::bs) => (Stars(Nil), bs)
 }
 
 def decode(r: Rexp, bs: Bits) = decode_aux(r, bs) match {
@@ -161,6 +173,7 @@ def bnullable (r: ARexp) : Boolean = r match {
   case AALTS(_, rs) => rs.exists(bnullable)
   case ASEQ(_, r1, r2) => bnullable(r1) && bnullable(r2)
   case ASTAR(_, _) => true
+  case ANTIMES(_, r, n) => if (n == 0) true else bnullable(r)
 }
 
 def bmkeps(r: ARexp) : Bits = r match {
@@ -170,6 +183,8 @@ def bmkeps(r: ARexp) : Bits = r match {
     if (bnullable(r)) bs ++ bmkeps(r) else bmkeps(AALTS(bs, rs))  
   case ASEQ(bs, r1, r2) => bs ++ bmkeps(r1) ++ bmkeps(r2)
   case ASTAR(bs, r) => bs ++ List(S)
+  case ANTIMES(bs, r, 0) => bs ++ List(S)
+  case ANTIMES(bs, r, n) => bs ++ List(S) ++ bmkeps(r) ++ bmkeps(ANTIMES(Nil, r, n - 1))
 }
 
 // derivative of a regular expression w.r.t. a character
@@ -181,7 +196,9 @@ def bder(c: Char, r: ARexp) : ARexp = r match {
   case ASEQ(bs, r1, r2) => 
     if (bnullable(r1)) AALT(bs, ASEQ(Nil, bder(c, r1), r2), fuse(bmkeps(r1), bder(c, r2)))
     else ASEQ(bs, bder(c, r1), r2)
-  case ASTAR(bs, r) => ASEQ(bs, fuse(List(Z), bder(c, r)), ASTAR(Nil, r))
+  case ASTAR(bs, r) => ASEQ(bs ++ List(Z), bder(c, r), ASTAR(Nil, r))
+  case ANTIMES(bs, r, n) => 
+    if (n == 0) AZERO else ASEQ(bs ++ List(Z), bder(c, r), ANTIMES(Nil, r, n - 1))
 }
 
 // derivative w.r.t. a string (iterates bder)
@@ -228,11 +245,12 @@ def distinctWith[B](xs: List[B],
 def eq(r1: ARexp, r2: ARexp) : Boolean = (r1, r2) match {
   case (AZERO, AZERO) => true
   case (AONE(_), AONE(_)) => true
-  case (ACHAR(_, c), ACHAR(_, d)) => (c == d)
+  case (ACHAR(_, c), ACHAR(_, d)) => c == d
   case (ASEQ(_, ra1, ra2), ASEQ(_, rb1, rb2)) => eq(ra1, rb1) && eq(ra2, rb2)
   case (AALTS(_, Nil), AALTS(_, Nil)) => true
   case (AALTS(_, r1::rs1), AALTS(_, r2::rs2)) => eq(r1, r2) && eq(AALTS(Nil, rs1), AALTS(Nil, rs2))
   case (ASTAR(_, r1), ASTAR(_, r2)) => eq(r1, r2)
+  case (ANTIMES(_, r1, n1), ANTIMES(_, r2, n2)) => n1 == n2 && eq(r1, r2)
   case _ => false
 }
 
@@ -286,6 +304,7 @@ def size(r: Rexp): Int = r match {
   case ALT(r1, r2) => 1 + size(r1) + size (r2)
   case SEQ(r1, r2) => 1 + size(r1) + size (r2)
   case STAR(r1) => 1 + size(r1)
+  case NTIMES(r1, n) => 1 + size(r1)
 }
 
 def asize(r: ARexp) : Int = size(erase(r)) 
@@ -317,3 +336,8 @@ println(asize(bders_simp(internalise(TEST), ("a" * 50000).toList)))
 // including decoding
 println(blexer_simp(TEST, "a" * 100))
 */
+
+val nreg = STAR(NTIMES(NTIMES("a", 100), 2))
+val nstr = "a" * 50000
+println(blexer(nreg, nstr))
+println(asize(bders_simp(internalise(nreg), nstr.toList)))
