@@ -3,6 +3,7 @@
 //   tested with 
 //
 //     Ammonite Repl 2.5.3 (Scala 2.13.8 Java 17.0.1)
+//     Ammonite Repl 2.5.4 (Scala 2.13.8 Java 17.0.1)       
 //     Scala 2.13.6 (OpenJDK 64-Bit Server VM, Java 17.0.1)
 //
 //   call with
@@ -337,7 +338,8 @@ println(asize(bders_simp(internalise(TEST), ("a" * 50000).toList)))
 println(blexer_simp(TEST, "a" * 100))
 */
 
-val nreg = STAR(NTIMES(NTIMES("a", 100), 2))
-val nstr = "a" * 50000
-println(blexer(nreg, nstr))
+val nreg = STAR(NTIMES(NTIMES("a", 100), 100))
+val nstr = "a" * 5000000
+println(blexer_simp(nreg, nstr))
+println(bders_simp(internalise(nreg), nstr.toList))
 println(asize(bders_simp(internalise(nreg), nstr.toList)))

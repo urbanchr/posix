@@ -404,6 +404,220 @@ next
 qed
 
 
+thm ntimes_closed_form
+
+thm rsize.simps
+
+lemma nupdates_snoc:
+  shows " (nupdates (xs @ [x]) r optlist) = nupdate x r (nupdates xs r optlist)"
+  by (simp add: nupdates_append)
+
+lemma nupdate_elems:
+  shows "\<forall>opt \<in> set (nupdate c r optlist). opt = None \<or> (\<exists>s n. opt = Some (s, n))"
+  using nonempty_string.cases by auto
+
+lemma nupdates_elems:
+  shows "\<forall>opt \<in> set (nupdates s r optlist). opt = None \<or> (\<exists>s n. opt = Some (s, n))"
+  by (meson nonempty_string.cases)
+
+
+lemma opterm_optlist_result_shape:
+  shows "\<forall>r' \<in> set (map (optermsimp r) optlist). r' = RZERO \<or> (\<exists>s m. r' = RSEQ (rders_simp r s) (RNTIMES r m))"
+  apply(induct optlist)
+   apply simp
+  apply(case_tac a)
+  apply simp+
+  by fastforce
+
+
+lemma opterm_optlist_result_shape2:
+  shows "\<And>optlist. \<forall>r' \<in> set (map (optermsimp r) optlist). r' = RZERO \<or> (\<exists>s m. r' = RSEQ (rders_simp r s) (RNTIMES r m))"  
+  using opterm_optlist_result_shape by presburger
+
+
+lemma nupdate_n_leq_n:
+  shows "\<forall>r \<in> set (nupdate c' r [Some ([c], n)]). r = None \<or>( \<exists>s' m. r = Some (s', m) \<and> m \<le> n)"
+  apply(case_tac n)
+   apply simp
+  apply simp
+  done
+(*
+lemma nupdate_induct_leqn:
+  shows "\<lbrakk>\<forall>opt \<in> set optlist. opt = None \<or> (\<exists>s' m. opt = Some(s', m) \<and> m \<le> n) \<rbrakk> \<Longrightarrow> 
+       \<forall>opt \<in> set (nupdate c' r optlist). opt = None \<or> (\<exists>s' m. opt = Some (s', m) \<and> m \<le> n)"
+  apply (case_tac optlist)
+   apply simp
+  apply(case_tac a)
+   apply simp
+  sledgehammer
+*)
+
+
+lemma nupdates_n_leq_n:
+  shows "\<forall>r \<in> set (nupdates s r [Some ([c], n)]). r = None \<or>( \<exists>s' m. r = Some (s', m) \<and> m \<le> n)"
+  apply(induct s rule: rev_induct)
+   apply simp
+  apply(subst nupdates_append)
+  by (metis nupdates_elems_leqn nupdates_snoc)
+  
+
+
+lemma ntimes_closed_form_list_elem_shape:
+  shows "\<forall>r' \<in> set (map (optermsimp r) (nupdates s r [Some ([c], n)])). 
+r' = RZERO \<or> (\<exists>s' m. r' = RSEQ (rders_simp r s') (RNTIMES r m) \<and> m \<le> n)"
+  apply(insert opterm_optlist_result_shape2)
+  apply(case_tac s)
+   apply(auto)
+  apply (metis rders_simp_one_char)
+  by (metis case_prod_conv nupdates.simps(2) nupdates_n_leq_n option.simps(4) option.simps(5))
+
+
+lemma ntimes_trivial1:
+  shows "rsize RZERO \<le> N + rsize (RNTIMES r n)"
+  by simp
+
+
+lemma ntimes_trivial20:
+  shows "m \<le> n \<Longrightarrow> rsize (RNTIMES r m) \<le> rsize (RNTIMES r n)"
+  by simp
+
+
+lemma ntimes_trivial2:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
+  shows "    r' = RSEQ (rders_simp r s1) (RNTIMES r m) \<and> m \<le> n
+       \<Longrightarrow> rsize r' \<le> Suc (N + rsize (RNTIMES r n))"
+  apply simp
+  by (simp add: add_mono_thms_linordered_semiring(1) assms)
+
+lemma ntimes_closed_form_list_elem_bounded:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
+  shows "\<forall>r' \<in>  set  (map (optermsimp r) (nupdates s r [Some ([c], n)])). rsize r' \<le> Suc (N + rsize (RNTIMES r n))"
+  apply(rule ballI)
+  apply(subgoal_tac  "r' = RZERO \<or> (\<exists>s' m. r' = RSEQ (rders_simp r s') (RNTIMES r m) \<and> m \<le> n)")
+  prefer 2
+  using ntimes_closed_form_list_elem_shape apply blast
+  apply(case_tac "r' = RZERO")
+  using le_SucI ntimes_trivial1 apply presburger
+  apply(subgoal_tac "\<exists>s1 m. r' = RSEQ (rders_simp r s1) (RNTIMES r m) \<and> m \<le> n")
+  apply(erule exE)+
+  using assms ntimes_trivial2 apply presburger
+  by blast
+
+
+lemma P_holds_after_distinct:
+  assumes "\<forall>r \<in> set rs. P r"
+  shows "\<forall>r \<in> set (rdistinct rs rset). P r"
+  by (simp add: assms rdistinct_set_equality1)
+
+lemma ntimes_control_bounded:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
+  shows "rsizes (rdistinct (map (optermsimp r) (nupdates s r [Some ([c], n)])) {}) 
+     \<le> (card (sizeNregex (Suc (N + rsize (RNTIMES r n))))) * (Suc (N + rsize (RNTIMES r n)))"
+  apply(subgoal_tac "\<forall>r' \<in> set (rdistinct (map (optermsimp r) (nupdates s r [Some ([c], n)])) {}).
+          rsize r' \<le> Suc (N + rsize (RNTIMES r n))")
+   apply (meson distinct_list_rexp_upto rdistinct_same_set)
+  apply(subgoal_tac "\<forall>r' \<in> set (map (optermsimp r) (nupdates s r [Some ([c], n)])). rsize r' \<le> Suc (N + rsize (RNTIMES r n))")
+   apply (simp add: rdistinct_set_equality)
+  by (metis assms nat_le_linear not_less_eq_eq ntimes_closed_form_list_elem_bounded)
+
+
+
+lemma ntimes_closed_form_bounded0:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
+  shows " (rders_simp (RNTIMES r 0) s)  = RZERO \<or> (rders_simp (RNTIMES r 0) s)  = RNTIMES r 0
+           "
+  apply(induct s)
+   apply simp
+  by (metis always0 list.simps(3) rder.simps(7) rders.simps(2) rders_simp_same_simpders rsimp.simps(3))
+
+lemma ntimes_closed_form_bounded1:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
+  shows " rsize (rders_simp (RNTIMES r 0) s) \<le> max (rsize  RZERO) (rsize (RNTIMES r 0))"
+  
+  by (metis assms max.cobounded1 max.cobounded2 ntimes_closed_form_bounded0)
+
+lemma self_smaller_than_bound:
+  shows "\<forall>s. rsize (rders_simp r s) \<le> N \<Longrightarrow> rsize r \<le> N"
+  apply(drule_tac x = "[]" in spec)
+  apply simp
+  done
+
+lemma ntimes_closed_form_bounded_nil_aux:
+  shows "max (rsize  RZERO) (rsize (RNTIMES r 0)) = 1 + rsize r"
+  by auto
+
+lemma ntimes_closed_form_bounded_nil:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
+  shows " rsize (rders_simp (RNTIMES r 0) s) \<le> 1 + rsize r"
+  using assms ntimes_closed_form_bounded1 by auto
+
+lemma ntimes_ineq1:
+  shows "(rsize (RNTIMES r n)) \<ge> 1 + rsize r"
+  by simp
+
+lemma ntimes_ineq2:
+  shows "1 + rsize r \<le>  
+max ((Suc (card (sizeNregex (Suc (N + rsize (RNTIMES r n))))) * (Suc (N + rsize (RNTIMES r n))))) (rsize (RNTIMES r n))"
+  by (meson le_max_iff_disj ntimes_ineq1)
+
+lemma ntimes_closed_form_bounded:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
+  shows "rsize (rders_simp (RNTIMES r (Suc n)) s) \<le> 
+           max ((Suc (card (sizeNregex (Suc (N + rsize (RNTIMES r n))))) * (Suc (N + rsize (RNTIMES r n))))) (rsize (RNTIMES r n))"
+proof(cases s)
+  case Nil
+  then show "rsize (rders_simp (RNTIMES r (Suc n)) s)
+    \<le> max (Suc (card (sizeNregex (Suc (N + rsize (RNTIMES r n))))) * Suc (N + rsize (RNTIMES r n))) (rsize (RNTIMES r n))" 
+    by simp
+next
+  case (Cons a list)
+
+  then have "rsize (rders_simp (RNTIMES r (Suc n)) s) = 
+             rsize (rsimp (RALTS ((map (optermsimp r)    (nupdates list r [Some ([a], n)])))))"
+    using ntimes_closed_form by fastforce
+  also have "... \<le> Suc (rsizes (rdistinct ((map (optermsimp r) (nupdates list r [Some ([a], n)]))) {}))"
+    using alts_simp_control by blast 
+  also have "... \<le> Suc (card (sizeNregex (Suc (N + rsize (RNTIMES r n))))) * (Suc (N + rsize (RNTIMES r n)))" 
+    using ntimes_control_bounded[OF assms]
+    by (metis add_mono le_add1 mult_Suc plus_1_eq_Suc)
+  also have "... \<le> max (Suc (card (sizeNregex (Suc (N + rsize (RNTIMES r n))))) * Suc (N + rsize (RNTIMES r n))) (rsize (RNTIMES r n))"
+    by simp    
+  finally show ?thesis by simp  
+qed
+
+
+lemma ntimes_closed_form_boundedA:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N"
+  shows "\<exists>N'. \<forall>s. rsize (rders_simp (RNTIMES r n) s) \<le> N'"
+  apply(case_tac n)
+  using assms ntimes_closed_form_bounded_nil apply blast
+  using assms ntimes_closed_form_bounded by blast
+
+
+lemma star_closed_form_nonempty_bounded:
+  assumes "\<forall>s. rsize (rders_simp r s) \<le> N" and "s \<noteq> []"
+  shows "rsize (rders_simp (RSTAR r) s) \<le> 
+            ((Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * (Suc (N + rsize (RSTAR r))))) "
+proof(cases s)
+  case Nil
+  then show ?thesis 
+    using local.Nil by fastforce
+next
+  case (Cons a list)
+  then have "rsize (rders_simp (RSTAR r) s) = 
+    rsize (rsimp (RALTS ((map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r)) (star_updates list r [[a]])))))"
+    using star_closed_form by fastforce
+  also have "... \<le> Suc (rsizes (rdistinct (map (\<lambda>s1. RSEQ (rders_simp r s1) (RSTAR r)) (star_updates list r [[a]])) {}))"
+    using alts_simp_control by blast 
+  also have "... \<le> Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * (Suc (N + rsize (RSTAR r)))" 
+    by (smt (z3) add_mono_thms_linordered_semiring(1) assms(1) le_add1 map_eq_conv mult_Suc plus_1_eq_Suc star_control_bounded)
+  also have "... \<le> max (Suc (card (sizeNregex (Suc (N + rsize (RSTAR r))))) * Suc (N + rsize (RSTAR r))) (rsize (RSTAR r))"
+    by simp    
+  finally show ?thesis by simp  
+qed
+
+
+
 lemma seq_estimate_bounded: 
   assumes "\<forall>s. rsize (rders_simp r1 s) \<le> N1" 
       and "\<forall>s. rsize (rders_simp r2 s) \<le> N2"
@@ -465,10 +679,11 @@ lemma rders_simp_bounded:
   apply(assumption)
   apply (metis alts_closed_form_bounded size_list_estimation')
   using star_closed_form_bounded apply blast
-  apply(auto)
-  (* HERE *)
-  sorry
+  using ntimes_closed_form_boundedA by blast
+  
   
 unused_thms
+export_code rders_simp rsimp rder in Scala module_name Example
+
 
 end

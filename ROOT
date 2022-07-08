@@ -10,5 +10,5 @@ theories[document = false]
      "BasicIdentities"
      "ClosedForms"
      "GeneralRegexBound"
-     (*"ClosedFormsBounds"
-     "FBound"*)
+     "ClosedFormsBounds"
+     "FBound"

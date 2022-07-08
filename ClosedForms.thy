@@ -1480,8 +1480,6 @@ fun hElem :: "rrexp  \<Rightarrow> rrexp list" where
 | "hElem r = [r]"
 
 
-
-
 lemma cbs_ders_cbs:
   shows "created_by_star r \<Longrightarrow> created_by_star (rder c r)"
   apply(induct r rule: created_by_star.induct)
@@ -1498,11 +1496,6 @@ lemma star_ders_cbs:
   apply simp
   using cbs_ders_cbs by auto
 
-(*
-lemma created_by_star_cases:
-  shows "created_by_star r \<Longrightarrow> \<exists>ra rb. (r = RALT ra rb \<and> created_by_star ra \<and> created_by_star rb) \<or> r = RSEQ ra rb "
-  by (meson created_by_star.cases)
-*)
 
 
 lemma hfau_pushin: 
@@ -1555,6 +1548,8 @@ lemma star_hfau_induct:
    apply presburger
   apply(subst stupdates_append[symmetric])
   using stupdates_join_general by blast
+
+
 
 lemma starders_hfau_also1:
   shows "hflat_aux (rders (RSTAR r) (c # xs)) = map (\<lambda>s1. RSEQ (rders r s1) (RSTAR r)) (star_updates xs r [[c]])"
@@ -1653,8 +1648,11 @@ lemma star_closed_form6:
   using hrewrites_simpeq srewritescf_alt1 apply fastforce
   using star_closed_form6_hrewrites by blast
 
+
+
+
 lemma stupdate_nonempty:
-  shows "\<forall>s \<in> set  Ss. s \<noteq> [] \<Longrightarrow> \<forall>s \<in> set (star_update c r Ss). s \<noteq> []"
+  shows "\<forall>s \<in> set Ss. s \<noteq> [] \<Longrightarrow> \<forall>s \<in> set (star_update c r Ss). s \<noteq> []"
   apply(induct Ss)
   apply simp
   apply(case_tac "rnullable (rders r a)")
@@ -1680,12 +1678,518 @@ lemma star_closed_form8:
 lemma star_closed_form:
   shows "rders_simp (RSTAR r0) (c#s) = 
 rsimp ( RALTS ( (map (\<lambda>s1. RSEQ (rders_simp r0 s1) (RSTAR r0) ) (star_updates s r0 [[c]]) ) ))"
-  apply(induct s)
+  apply(case_tac s)
    apply simp
    apply (metis idem_after_simp1 rsimp.simps(1) rsimp.simps(6) rsimp_idem)
   using star_closed_form4 star_closed_form5 star_closed_form6 star_closed_form8 by presburger
 
 
-unused_thms
 
+
+fun nupdate :: "char \<Rightarrow> rrexp \<Rightarrow>  (string * nat) option  list \<Rightarrow> (string * nat) option  list" where
+  "nupdate c r [] = []"
+| "nupdate c r (Some (s, Suc n) # Ss) = (if (rnullable (rders r s)) 
+                                          then Some (s@[c], Suc n) # Some ([c], n) # (nupdate c r Ss) 
+                                          else Some ((s@[c]), Suc n)  # (nupdate c r Ss) 
+                                        )"
+| "nupdate c r (Some (s, 0) # Ss) =  (if (rnullable (rders r s)) 
+                                        then Some (s@[c], 0) # None # (nupdate c r Ss) 
+                                        else Some ((s@[c]), 0)  # (nupdate c r Ss) 
+                                      ) "
+| "nupdate c r (None # Ss) = (None # nupdate c r Ss)"
+
+
+fun nupdates :: "char list \<Rightarrow> rrexp \<Rightarrow> (string * nat) option list \<Rightarrow> (string * nat) option list"
+  where
+  "nupdates [] r Ss = Ss"
+| "nupdates (c # cs) r Ss = nupdates cs r (nupdate c r Ss)"
+
+fun ntset :: "rrexp \<Rightarrow> nat \<Rightarrow> string \<Rightarrow> (string * nat) option list" where
+  "ntset r (Suc n)  (c # cs) = nupdates cs r [Some ([c], n)]"
+| "ntset r 0 _ = [None]"
+| "ntset r _ [] = []"
+
+inductive created_by_ntimes :: "rrexp \<Rightarrow> bool" where
+  "created_by_ntimes RZERO"
+| "created_by_ntimes (RSEQ ra (RNTIMES rb n))"
+| "\<lbrakk>created_by_ntimes r1; created_by_ntimes r2\<rbrakk> \<Longrightarrow> created_by_ntimes (RALT r1 r2)"
+| "\<lbrakk>created_by_ntimes r \<rbrakk> \<Longrightarrow> created_by_ntimes (RALT r RZERO)"
+
+fun highest_power_aux :: "(string * nat) option list \<Rightarrow> nat \<Rightarrow> nat" where
+  "highest_power_aux [] n = n"
+| "highest_power_aux (None # rs) n = highest_power_aux rs n"
+| "highest_power_aux (Some (s, n) # rs) m = highest_power_aux rs (max n m)"
+
+fun hpower :: "(string * nat) option list \<Rightarrow> nat" where
+  "hpower rs =  highest_power_aux rs 0"
+                        
+
+lemma nupdate_mono:
+  shows " (highest_power_aux (nupdate c r optlist) m) \<le> (highest_power_aux optlist m)"
+  apply(induct optlist arbitrary: m)
+   apply simp
+  apply(case_tac a)
+   apply simp
+  apply(case_tac aa)
+  apply(case_tac b)
+   apply simp+
+  done
+
+lemma nupdate_mono1:
+  shows "hpower (nupdate c r optlist) \<le> hpower optlist"
+  by (simp add: nupdate_mono)
+
+
+
+lemma cbn_ders_cbn:
+  shows "created_by_ntimes r \<Longrightarrow> created_by_ntimes (rder c r)"
+  apply(induct r rule: created_by_ntimes.induct)
+    apply simp
+
+  using created_by_ntimes.intros(1) created_by_ntimes.intros(2) created_by_ntimes.intros(3) apply presburger
+  
+  apply (metis created_by_ntimes.simps rder.simps(5) rder.simps(7))
+  using created_by_star.intros(1) created_by_star.intros(2) apply auto[1]
+  using created_by_ntimes.intros(1) created_by_ntimes.intros(3) apply auto[1]
+  by (metis (mono_tags, lifting) created_by_ntimes.simps list.simps(8) list.simps(9) rder.simps(1) rder.simps(4))
+
+lemma ntimes_ders_cbn:
+  shows "created_by_ntimes (rders (RSEQ r' (RNTIMES r n)) s)"
+  apply(induct s rule: rev_induct)
+   apply simp
+  apply (simp add: created_by_ntimes.intros(2))
+  apply(subst rders_append)
+  using cbn_ders_cbn by auto
+
+lemma always0:
+  shows "rders RZERO s = RZERO"
+  apply(induct s)
+  by simp+
+
+lemma ntimes_ders_cbn1:
+  shows "created_by_ntimes (rders (RNTIMES r n) (c#s))"
+  apply(case_tac n)
+   apply simp
+  using always0 created_by_ntimes.intros(1) apply auto[1]
+  by (simp add: ntimes_ders_cbn)
+
+
+lemma ntimes_hfau_pushin: 
+  shows "created_by_ntimes r \<Longrightarrow> hflat_aux (rder c r) = concat (map hflat_aux (map (rder c) (hflat_aux r)))"
+  apply(induct r rule: created_by_ntimes.induct)
+  apply simp+
+  done
+
+
+abbreviation
+  "opterm r SN \<equiv>     case SN of
+                                Some (s, n) \<Rightarrow> RSEQ (rders r s) (RNTIMES r n)
+                            |   None \<Rightarrow> RZERO
+                     
+              
+"
+
+fun nonempty_string :: "(string * nat) option \<Rightarrow> bool" where
+  "nonempty_string None = True"
+| "nonempty_string (Some ([], n)) = False"
+| "nonempty_string (Some (c#s, n)) = True"
+
+
+lemma nupdate_nonempty:
+  shows "\<lbrakk>\<forall>opt \<in> set Ss. nonempty_string opt \<rbrakk> \<Longrightarrow> \<forall>opt \<in> set (nupdate c r Ss). nonempty_string opt"
+  apply(induct c r Ss rule: nupdate.induct)
+     apply(auto)
+  apply (metis Nil_is_append_conv neq_Nil_conv nonempty_string.simps(3))
+  by (metis Nil_is_append_conv neq_Nil_conv nonempty_string.simps(3))
+
+
+
+lemma nupdates_nonempty:
+  shows "\<lbrakk>\<forall>opt \<in> set Ss. nonempty_string opt \<rbrakk> \<Longrightarrow> \<forall>opt \<in> set (nupdates s r Ss). nonempty_string opt"
+  apply(induct s arbitrary: Ss)
+   apply simp
+  apply simp
+  using nupdate_nonempty by presburger
+
+lemma nullability1: shows "rnullable (rders r s) = rnullable (rders_simp r s)"
+  by (metis der_simp_nullability rders.simps(1) rders_simp.simps(1) rders_simp_same_simpders)
+
+lemma nupdate_induct1:
+  shows 
+  "concat (map (hflat_aux \<circ> (rder c \<circ> (opterm r)))  sl ) = 
+   map (opterm r) (nupdate c r sl)"
+  apply(induct sl)
+   apply simp
+  apply(simp add: rders_append)
+  apply(case_tac "a")
+   apply simp+
+  apply(case_tac "aa")
+  apply(case_tac "b")
+  apply(case_tac "rnullable (rders r ab)")
+  apply(subgoal_tac "rnullable (rders_simp r ab)")
+    apply simp
+  using rders.simps(1) rders.simps(2) rders_append apply presburger
+  using nullability1 apply blast
+   apply simp
+  using rders.simps(1) rders.simps(2) rders_append apply presburger
+  apply simp
+  using rders.simps(1) rders.simps(2) rders_append by presburger
+
+
+lemma nupdates_join_general:
+  shows  "concat (map hflat_aux (map (rder x) (map (opterm r) (nupdates xs r Ss))  )) =
+           map (opterm r) (nupdates (xs @ [x]) r Ss)"
+  apply(induct xs arbitrary: Ss)
+   apply (simp)
+  prefer 2
+   apply auto[1]
+  using nupdate_induct1 by blast
+
+
+lemma nupdates_join_general1:
+  shows  "concat (map (hflat_aux \<circ> (rder x) \<circ> (opterm r)) (nupdates xs r Ss)) =
+           map (opterm r) (nupdates (xs @ [x]) r Ss)"
+  by (metis list.map_comp nupdates_join_general)
+
+lemma nupdates_append: shows 
+"nupdates (s @ [c]) r Ss = nupdate c r (nupdates s r Ss)"
+  apply(induct s arbitrary: Ss)
+   apply simp
+  apply simp
+  done
+
+lemma nupdates_mono:
+  shows "highest_power_aux (nupdates s r optlist) m \<le> highest_power_aux optlist m"
+  apply(induct s rule: rev_induct)
+   apply simp
+  apply(subst nupdates_append)
+  by (meson le_trans nupdate_mono)
+
+lemma nupdates_mono1:
+  shows "hpower (nupdates s r optlist) \<le> hpower optlist"
+  by (simp add: nupdates_mono)
+
+
+(*"\<forall>r \<in> set (nupdates s r [Some ([c], n)]). r = None \<or>( \<exists>s' m. r = Some (s', m) \<and> m \<le> n)"*)
+lemma nupdates_mono2:
+  shows "hpower (nupdates s r [Some ([c], n)]) \<le> n"
+  by (metis highest_power_aux.simps(1) highest_power_aux.simps(3) hpower.simps max_nat.right_neutral nupdates_mono1)
+
+lemma hpow_arg_mono:
+  shows "m \<ge> n \<Longrightarrow> highest_power_aux rs m \<ge> highest_power_aux rs n"
+  apply(induct rs arbitrary: m n)
+   apply simp
+  apply(case_tac a)
+   apply simp
+  apply(case_tac aa)
+  apply simp
+  done
+
+
+lemma hpow_increase:
+  shows "highest_power_aux (a # rs') m \<ge> highest_power_aux rs' m"
+  apply(case_tac a)
+   apply simp
+  apply simp
+  apply(case_tac aa)
+  apply(case_tac b)
+   apply simp+
+  apply(case_tac "Suc nat > m")
+  using hpow_arg_mono max.cobounded2 apply blast
+  using hpow_arg_mono max.cobounded2 by blast
+
+lemma hpow_append:
+  shows "highest_power_aux (rsa @ rsb) m  = highest_power_aux rsb (highest_power_aux rsa m)"
+  apply (induct rsa arbitrary: rsb m)
+   apply simp
+  apply simp
+  apply(case_tac a)
+   apply simp
+  apply(case_tac aa)
+  apply simp
+  done
+
+lemma hpow_aux_mono:
+  shows "highest_power_aux (rsa @ rsb) m \<ge> highest_power_aux rsb m"
+  apply(induct rsa arbitrary: rsb rule: rev_induct)
+  apply simp
+  apply simp
+  using hpow_increase order.trans by blast
+ 
+
+
+
+lemma hpow_mono:
+  shows "hpower (rsa @ rsb) \<le> n \<Longrightarrow> hpower rsb \<le> n"
+  apply(induct rsb arbitrary: rsa)
+   apply simp
+  apply(subgoal_tac "hpower rsb \<le> n")
+  apply simp
+  apply (metis dual_order.trans hpow_aux_mono)
+  by (metis hpow_append hpow_increase hpower.simps nat_le_iff_add trans_le_add1)
+
+
+lemma hpower_rs_elems_aux:
+  shows "highest_power_aux rs k \<le> n \<Longrightarrow> \<forall>r\<in>set rs. r = None \<or> (\<exists>s' m. r = Some (s', m) \<and> m \<le> n)"
+apply(induct rs k arbitrary: n rule: highest_power_aux.induct)
+    apply(auto)
+  by (metis dual_order.trans highest_power_aux.simps(1) hpow_append hpow_aux_mono linorder_le_cases max.absorb1 max.absorb2)
+
+
+lemma hpower_rs_elems:
+  shows "hpower rs \<le> n \<Longrightarrow> \<forall>r \<in> set rs. r = None \<or>( \<exists>s' m. r = Some (s', m) \<and> m \<le> n)"
+  by (simp add: hpower_rs_elems_aux)
+
+lemma nupdates_elems_leqn:
+  shows "\<forall>r \<in> set (nupdates s r [Some ([c], n)]). r = None \<or>( \<exists>s' m. r = Some (s', m) \<and> m \<le> n)"
+  by (meson hpower_rs_elems nupdates_mono2)
+
+lemma ntimes_hfau_induct:
+  shows "hflat_aux (rders (RSEQ (rder c r) (RNTIMES r n)) s) =   
+      map (opterm r) (nupdates s r [Some ([c], n)])"
+  apply(induct s rule: rev_induct)
+   apply simp
+  apply(subst rders_append)+
+  apply simp
+  apply(subst nupdates_append)
+  apply(subgoal_tac "created_by_ntimes (rders (RSEQ (rder c r) (RNTIMES r n)) xs)")
+  prefer 2
+  apply (simp add: ntimes_ders_cbn)
+  apply(subst ntimes_hfau_pushin)
+   apply simp
+  apply(subgoal_tac "concat (map hflat_aux (map (rder x) (hflat_aux (rders (RSEQ (rder c r) (RNTIMES r n)) xs)))) =
+                     concat (map hflat_aux (map (rder x) ( map (opterm r) (nupdates xs r [Some ([c], n)])))) ")
+   apply(simp only:)
+  prefer 2
+   apply presburger
+  apply(subst nupdates_append[symmetric])  
+  using nupdates_join_general by blast
+
+
+(*nupdates s r [Some ([c], n)]*)
+lemma ntimes_ders_hfau_also1:
+  shows "hflat_aux (rders (RNTIMES r (Suc n)) (c # xs)) = map (opterm r) (nupdates xs r [Some ([c], n)])"
+  using ntimes_hfau_induct by force
+
+
+
+lemma hfau_rsimpeq2_ntimes:
+  shows "created_by_ntimes r \<Longrightarrow> rsimp r = rsimp ( (RALTS (hflat_aux r)))"
+  apply(induct r)
+       apply simp+
+  
+    apply (metis rsimp_seq_equal1)
+  prefer 2
+   apply simp
+  apply(case_tac x)
+   apply simp
+  apply(case_tac "list")
+   apply simp
+  
+  apply (metis idem_after_simp1)
+  apply(case_tac "lista")
+  prefer 2
+   apply (metis hflat_aux.simps(8) idem_after_simp1 list.simps(8) list.simps(9) rsimp.simps(2))
+  apply(subgoal_tac "rsimp (RALT a aa) = rsimp (RALTS (hflat_aux (RALT a aa)))")
+  apply simp
+  apply(subgoal_tac "rsimp (RALT a aa) = rsimp (RALTS (hflat_aux a @ hflat_aux aa))")
+  using hflat_aux.simps(1) apply presburger
+  apply simp
+  using cbs_hfau_rsimpeq1 apply(fastforce)
+  by simp
+  
+
+lemma ntimes_closed_form1:
+  shows "rsimp (rders (RNTIMES r (Suc n)) (c#s)) = 
+rsimp ( ( RALTS (  map (opterm r) (nupdates s r [Some ([c], n)]) )))"
+  apply(subgoal_tac "created_by_ntimes (rders (RNTIMES r (Suc n)) (c#s))")
+   apply(subst hfau_rsimpeq2_ntimes)
+  apply linarith
+  using ntimes_ders_hfau_also1 apply auto[1]
+  using ntimes_ders_cbn1 by blast
+
+
+lemma ntimes_closed_form2:
+  shows  "rsimp (rders_simp (RNTIMES r (Suc n)) (c#s) ) = 
+rsimp ( ( RALTS ( (map (opterm r ) (nupdates s r [Some ([c], n)]) ) )))"
+  by (metis list.distinct(1) ntimes_closed_form1 rders_simp_same_simpders rsimp_idem)
+
+
+lemma ntimes_closed_form3:
+  shows  "rsimp (rders_simp (RNTIMES r n) (c#s)) =   (rders_simp (RNTIMES r n) (c#s))"
+  by (metis list.distinct(1) rders_simp_same_simpders rsimp_idem)
+
+
+lemma ntimes_closed_form4:
+  shows " (rders_simp (RNTIMES r (Suc n)) (c#s)) = 
+rsimp ( ( RALTS ( (map (opterm r ) (nupdates s r [Some ([c], n)]) )  )))"
+  using ntimes_closed_form2 ntimes_closed_form3 
+  by metis
+
+
+
+
+lemma ntimes_closed_form5:
+  shows " rsimp (  RALTS (map (\<lambda>s1. RSEQ (rders r0 s1) (RNTIMES r n) )         Ss)) = 
+          rsimp (  RALTS (map (\<lambda>s1. rsimp (RSEQ (rders r0 s1) (RNTIMES r n)) ) Ss))"
+  by (smt (verit, ccfv_SIG) list.map_comp map_eq_conv o_apply simp_flatten_aux0)
+
+
+
+lemma ntimes_closed_form6_hrewrites:
+  shows "  
+(map (\<lambda>s1. (RSEQ (rsimp (rders r0 s1)) (RNTIMES r0 n)) ) Ss )
+ scf\<leadsto>*
+(map (\<lambda>s1. rsimp (RSEQ (rders r0 s1) (RNTIMES r0 n)) ) Ss )"
+  apply(induct Ss)
+  apply simp
+  apply (simp add: ss1)
+  by (metis (no_types, lifting) list.simps(9) rsimp.simps(1) rsimp_idem simp_hrewrites ss2)
+
+
+
+lemma ntimes_closed_form6:
+  shows " rsimp ( ( RALTS ( (map (\<lambda>s1. rsimp (RSEQ (rders r0 s1) (RNTIMES r0 n)) ) Ss )))) = 
+          rsimp ( ( RALTS ( (map (\<lambda>s1.  (RSEQ (rsimp (rders r0 s1)) (RNTIMES r0 n)) ) Ss ))))"
+  apply(subgoal_tac " map (\<lambda>s1.  (RSEQ (rsimp (rders r0 s1)) (RNTIMES r0 n)) ) Ss  scf\<leadsto>*
+                      map (\<lambda>s1.  rsimp (RSEQ  (rders r0 s1) (RNTIMES r0 n)) ) Ss ")
+  using hrewrites_simpeq srewritescf_alt1 apply fastforce
+  using ntimes_closed_form6_hrewrites by blast
+
+abbreviation
+  "optermsimp r SN \<equiv>     case SN of
+                                Some (s, n) \<Rightarrow> RSEQ (rders_simp r s) (RNTIMES r n)
+                            |   None \<Rightarrow> RZERO
+                     
+              
+"
+
+abbreviation
+  "optermOsimp r SN \<equiv>     case SN of
+                                Some (s, n) \<Rightarrow> rsimp (RSEQ (rders r s) (RNTIMES r n))
+                            |   None \<Rightarrow> RZERO
+                     
+              
+"
+
+abbreviation
+  "optermosimp r SN \<equiv> case SN of
+                              Some (s, n) \<Rightarrow> RSEQ (rsimp (rders r s)) (RNTIMES r n)
+                            | None \<Rightarrow> RZERO
+"
+
+lemma ntimes_closed_form51:
+  shows "rsimp (RALTS (map (opterm r) (nupdates s r [Some ([c], n)]))) =
+         rsimp (RALTS (map (rsimp \<circ> (opterm r)) (nupdates s r [Some ([c], n)])))"
+  by (metis map_map simp_flatten_aux0)
+
+
+
+lemma osimp_Osimp:
+  shows " nonempty_string sn \<Longrightarrow> optermosimp r sn = optermsimp r sn"
+  apply(induct rule: nonempty_string.induct)
+  apply force
+   apply auto[1]
+  apply simp
+  by (metis list.distinct(1) rders.simps(2) rders_simp.simps(2) rders_simp_same_simpders)
+
+
+
+lemma osimp_Osimp_list:
+  shows "\<forall>sn \<in> set snlist. nonempty_string sn \<Longrightarrow> map (optermosimp r) snlist = map (optermsimp r) snlist"
+  by (simp add: osimp_Osimp)
+
+
+lemma ntimes_closed_form8:
+  shows  
+"rsimp (RALTS (map (optermosimp r) (nupdates s r [Some ([c], n)]))) =
+ rsimp (RALTS (map (optermsimp r) (nupdates s r [Some ([c], n)])))"
+  apply(subgoal_tac "\<forall>opt \<in> set (nupdates s r [Some ([c], n)]). nonempty_string opt")
+  using osimp_Osimp_list apply presburger
+  by (metis list.distinct(1) list.set_cases nonempty_string.simps(3) nupdates_nonempty set_ConsD)
+
+
+
+lemma ntimes_closed_form9aux:
+  shows "\<forall>snopt \<in> set (nupdates s r [Some ([c], n)]). nonempty_string snopt"
+  by (metis list.distinct(1) list.set_cases nonempty_string.simps(3) nupdates_nonempty set_ConsD)
+
+lemma ntimes_closed_form9aux1:
+  shows  "\<forall>snopt \<in> set snlist. nonempty_string snopt \<Longrightarrow> 
+rsimp (RALTS (map (optermosimp r) snlist)) =
+rsimp (RALTS (map (optermOsimp r) snlist))"
+  apply(induct snlist)
+   apply simp+
+  apply(case_tac "a")
+   apply simp+
+  by (smt (z3) case_prod_conv idem_after_simp1 map_eq_conv nonempty_string.elims(2) o_apply option.simps(4) option.simps(5) rsimp.simps(1) rsimp.simps(7) rsimp_idem)
+  
+
+
+
+lemma ntimes_closed_form9:
+  shows  
+"rsimp (RALTS (map (optermosimp r) (nupdates s r [Some ([c], n)]))) =
+ rsimp (RALTS (map (optermOsimp r) (nupdates s r [Some ([c], n)])))"
+  using ntimes_closed_form9aux ntimes_closed_form9aux1 by presburger
+
+
+lemma ntimes_closed_form10rewrites_aux:
+  shows "  map (rsimp \<circ> (opterm r)) optlist scf\<leadsto>* 
+           map (optermOsimp r)      optlist"
+  apply(induct optlist)
+   apply simp
+   apply (simp add: ss1)
+  apply simp
+  apply(case_tac a)
+  using ss2 apply fastforce
+  using ss2 by force
+  
+
+lemma ntimes_closed_form10rewrites:
+  shows "  map (rsimp \<circ> (opterm r)) (nupdates s r [Some ([c], n)]) scf\<leadsto>* 
+           map (optermOsimp r) (nupdates s r [Some ([c], n)])"
+  using ntimes_closed_form10rewrites_aux by blast
+
+lemma ntimes_closed_form10:
+  shows "rsimp (RALTS (map (rsimp \<circ> (opterm r)) (nupdates s r [Some ([c], n)]))) = 
+         rsimp (RALTS (map (optermOsimp r) (nupdates s r [Some ([c], n)])))"
+  by (smt (verit, best) case_prod_conv hpower_rs_elems map_eq_conv nupdates_mono2 o_apply option.case(2) option.simps(4) rsimp.simps(3))
+
+
+lemma rders_simp_cons:
+  shows "rders_simp r (c # s) = rders_simp (rsimp (rder c r)) s"
+  by simp
+
+lemma rder_ntimes:
+  shows "rder c (RNTIMES r (Suc n)) = RSEQ (rder c r) (RNTIMES r n)"
+  by simp
+
+
+lemma ntimes_closed_form:
+  shows "rders_simp (RNTIMES r0 (Suc n)) (c#s) = 
+rsimp ( RALTS ( (map (optermsimp r0 ) (nupdates s r0 [Some ([c], n)]) ) ))"
+  apply (subst rders_simp_cons)
+  apply(subst rder_ntimes)  
+  using ntimes_closed_form10 ntimes_closed_form4 ntimes_closed_form51 ntimes_closed_form8 ntimes_closed_form9 by force
+
+
+
+
+
+
+(*
+lemma ntimes_closed_form:
+  assumes "s \<noteq> []"
+  shows "rders_simp (RNTIMES r (Suc n)) s = 
+rsimp ( RALTS  (     map 
+                     (\<lambda> optSN. case optSN of
+                                Some (s, n) \<Rightarrow> RSEQ (rders_simp r s) (RNTIMES r n)
+                            |   None \<Rightarrow> RZERO
+                     ) 
+                     (ntset r n s) 
+               )
+      )"
+  
+*)
 end
