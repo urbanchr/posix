@@ -106,8 +106,6 @@ lemma bmkeps_fuse:
   apply(induct r rule: bnullable.induct) 
         apply(auto)
   apply (metis append.assoc bmkeps_retrieve bmkeps_retrieve_AALTs bnullable.simps(4))  
-   apply(case_tac n)
-  apply(auto)
   done
 
 lemma bmkepss_fuse: 

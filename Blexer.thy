@@ -50,7 +50,6 @@ where
                                     in (Stars_add v vs, bs''))"
 | "decode' [] (NTIMES r n) = (Void, [])"
 | "decode' (S # bs) (NTIMES r n) = (Stars [], bs)"
-(*| "decode' (Z # bs) (NTIMES r 0) = (undefined, bs)"*)
 | "decode' (Z # bs) (NTIMES r n) = (let (v, bs') = decode' bs r in
                                     let (vs, bs'') = decode' bs' (NTIMES r (n - 1)) 
                                     in (Stars_add v vs, bs''))"
@@ -215,8 +214,8 @@ where
 | "bmkeps(AALTs bs (r#rs)) = 
     (if bnullable(r) then (bs @ bmkeps r) else (bmkeps (AALTs bs rs)))"
 | "bmkeps(ASTAR bs r) = bs @ [S]"
-| "bmkeps(ANTIMES bs r 0) = bs @ [S]"
-| "bmkeps(ANTIMES bs r (Suc n)) = bs @ [Z] @ (bmkeps r) @ bmkeps(ANTIMES [] r n)"
+| "bmkeps(ANTIMES bs r n) = 
+    (if n = 0 then bs @ [S] else bs @ [Z] @ (bmkeps r) @ bmkeps(ANTIMES [] r (n - 1)))"
 apply(pat_completeness)
 apply(auto)
 done
@@ -428,7 +427,8 @@ lemma bmkeps_retrieve:
         apply(auto)
   apply (simp add: retrieve_AALTs_bnullable1)
   using retrieve_AALTs_bnullable1 apply force
-  by (metis retrieve_AALTs_bnullable2)  
+  apply(metis retrieve_AALTs_bnullable2)
+  by (metis Cons_eq_appendI One_nat_def Suc_diff_1 eq_Nil_appendI replicate_Suc retrieve.simps(10))  
   
 
 lemma bder_retrieve:

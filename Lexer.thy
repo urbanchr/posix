@@ -258,7 +258,6 @@ next
         "v = Seq v1 (Stars vs)" "s = s1 @ s2" 
         "s1 \<in> der c r \<rightarrow> v1" "s2 \<in> (NTIMES r (n - 1)) \<rightarrow> (Stars vs)" "0 < n"
         "\<not> (\<exists>s\<^sub>3 s\<^sub>4. s\<^sub>3 \<noteq> [] \<and> s\<^sub>3 @ s\<^sub>4 = s2 \<and> s1 @ s\<^sub>3 \<in> L (der c r) \<and> s\<^sub>4 \<in> L (NTIMES r (n - 1)))" 
-    
     apply(auto elim: Posix_elims simp add: der_correctness Der_def intro: Posix.intros split: if_splits)
     apply(erule Posix_elims)
     apply(simp)
@@ -287,14 +286,8 @@ next
           then have "\<not> (\<exists>s\<^sub>3 s\<^sub>4. s\<^sub>3 \<noteq> [] \<and> s\<^sub>3 @ s\<^sub>4 = s2 \<and> (c # s1) @ s\<^sub>3 \<in> L r \<and> s\<^sub>4 \<in> L (NTIMES r (n - 1)))"
             by (simp add: der_correctness Der_def)
         ultimately 
-        have "((c # s1) @ s2) \<in> NTIMES r n \<rightarrow> Stars (injval r c v1 # vs)" 
-           apply (rule_tac Posix.intros)
-               apply(simp_all)
-              apply(case_tac n)
-            apply(simp)
-           using Posix_elims(1) NTIMES.prems apply auto[1]
-             apply(simp)
-             done
+        have "((c # s1) @ s2) \<in> NTIMES r n \<rightarrow> Stars (injval r c v1 # vs)"
+          by (metis One_nat_def Posix_NTIMES1 Suc_eq_plus1 Suc_pred cons(5))
         then show "(c # s) \<in> NTIMES r n \<rightarrow> injval (NTIMES r n) c v" using cons by(simp)
       qed  
 
