@@ -24,7 +24,7 @@ fun sz where
 | "sz (SEQ r1 r2) = 1 + sz r1 + sz r2"
 | "sz (ALT r1 r2) = 1 + sz r1 + sz r2"
 | "sz (STAR r) = 1 + sz r"
-| "sz (NTIMES r n) = 1 + n + sz r"
+| "sz (NTIMES r n) = 1 + (n + 1) + sz r"
 
 
 fun 
@@ -48,11 +48,7 @@ where
 | "decode' (Z # bs) (STAR r) = (let (v, bs') = decode' bs r in
                                     let (vs, bs'') = decode' bs' (STAR r) 
                                     in (Stars_add v vs, bs''))"
-| "decode' [] (NTIMES r n) = (Void, [])"
-| "decode' (S # bs) (NTIMES r n) = (Stars [], bs)"
-| "decode' (Z # bs) (NTIMES r n) = (let (v, bs') = decode' bs r in
-                                    let (vs, bs'') = decode' bs' (NTIMES r (n - 1)) 
-                                    in (Stars_add v vs, bs''))"
+| "decode' bs (NTIMES r n) = decode' bs (STAR r)"
 by pat_completeness auto
 
 lemma decode'_smaller:
@@ -63,14 +59,13 @@ apply(induct bs r)
 apply(auto simp add: decode'.psimps split: prod.split)
 using dual_order.trans apply blast
 apply (meson dual_order.trans le_SucI)
-  apply (meson le_SucI le_trans)
   done
 
 termination "decode'"  
 apply(relation "inv_image (measure(%cs. sz cs) <*lex*> measure(%s. size s)) (%(ds,r). (r,ds))") 
 apply(auto dest!: decode'_smaller)
    apply (metis less_Suc_eq_le snd_conv)
-  by (metis less_Suc_eq_le snd_conv)
+  done
 
 definition
   decode :: "bit list \<Rightarrow> rexp \<Rightarrow> val option"
@@ -99,10 +94,13 @@ lemma decode'_code:
   assumes "\<Turnstile> v : r"
   shows "decode' ((code v) @ ds) r = (v, ds)"
 using assms
-  apply(induct v r arbitrary: ds) 
-  apply(auto)
+  apply(induct v r arbitrary: ds rule: Prf.induct) 
+  apply(auto)[6]
   using decode'_code_Stars apply blast
-   by (metis Un_iff decode'_code_NTIMES set_append)  
+  apply(rule decode'_code_NTIMES)
+  apply(simp)
+  apply(auto)
+  done
 
 lemma decode_code:
   assumes "\<Turnstile> v : r"
