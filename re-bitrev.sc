@@ -9,9 +9,13 @@
 //
 //   call with
 //
-//   amm re-bit.sc     or   scala re-bit.sc
+//   amm re-bitrev.sc     or   scala re-bitrev.sc
 //
-//   
+// This version builds bit-sequences the natural way how
+// lists are constructed (from right to left). Therefore
+// it reverses the list before decoding. The advantage is
+// that the addition of elements to the bit-sequences is
+// faster.
 
 import scala.language.implicitConversions    
 import scala.language.reflectiveCalls
@@ -100,12 +104,12 @@ def erase(r:ARexp): Rexp = r match{
 // adds (fuses) a bitsequence to an arexp
 def fuse(bs: Bits, r: ARexp) : ARexp = r match {
   case AZERO => AZERO
-  case AONE(cs) => AONE(bs ++ cs)
-  case ACHAR(cs, c) => ACHAR(bs ++ cs, c)
-  case AALTS(cs, rs) => AALTS(bs ++ cs, rs)
-  case ASEQ(cs, r1, r2) => ASEQ(bs ++ cs, r1, r2)
-  case ASTAR(cs, r) => ASTAR(bs ++ cs, r)
-  case ANTIMES(cs, r, n) => ANTIMES(bs ++ cs, r, n)
+  case AONE(cs) => AONE(cs ++ bs)
+  case ACHAR(cs, c) => ACHAR(cs ++ bs, c)
+  case AALTS(cs, rs) => AALTS(cs ++ bs, rs)
+  case ASEQ(cs, r1, r2) => ASEQ(cs ++ bs, r1, r2)
+  case ASTAR(cs, r) => ASTAR(cs ++ bs, r)
+  case ANTIMES(cs, r, n) => ANTIMES(cs ++ bs, r, n)
 }
 
 // internalises a "normal" regex into an annotated regex
@@ -304,13 +308,13 @@ def bnullable (r: ARexp) : Boolean = r match {
 // empty string
 def bmkeps(r: ARexp) : Bits = r match {
   case AONE(bs) => bs
-  case AALTS(bs, r::Nil) => bs ++ bmkeps(r) 
+  case AALTS(bs, r::Nil) => bmkeps(r) ++ bs
   case AALTS(bs, r::rs) => 
-    if (bnullable(r)) bs ++ bmkeps(r) else bmkeps(AALTS(bs, rs))  
-  case ASEQ(bs, r1, r2) => bs ++ bmkeps(r1) ++ bmkeps(r2)
-  case ASTAR(bs, r) => bs ++ List(S)
-  case ANTIMES(bs, r, 0) => bs ++ List(S)
-  case ANTIMES(bs, r, n) => bs ++ List(Z) ++ bmkeps(r) ++ bmkeps(ANTIMES(Nil, r, n - 1))
+    if (bnullable(r)) bmkeps(r) ++ bs else bmkeps(AALTS(bs, rs))  
+  case ASEQ(bs, r1, r2) => bmkeps(r2) ++ bmkeps(r1) ++ bs
+  case ASTAR(bs, r) => S :: bs
+  case ANTIMES(bs, r, 0) => S :: bs
+  case ANTIMES(bs, r, n) => bmkeps(ANTIMES(Nil, r, n - 1)) ++ bmkeps(r) ++ List(Z) ++ bs
 }
 
 // derivative of a regular expression w.r.t. a character
@@ -322,9 +326,9 @@ def bder(c: Char, r: ARexp) : ARexp = r match {
   case ASEQ(bs, r1, r2) => 
     if (bnullable(r1)) AALT(bs, ASEQ(Nil, bder(c, r1), r2), fuse(bmkeps(r1), bder(c, r2)))
     else ASEQ(bs, bder(c, r1), r2)
-  case ASTAR(bs, r) => ASEQ(bs ++ List(Z), bder(c, r), ASTAR(Nil, r))
+  case ASTAR(bs, r) => ASEQ(Z :: bs, bder(c, r), ASTAR(Nil, r))
   case ANTIMES(bs, r, n) => 
-    if (n == 0) AZERO else ASEQ(bs ++ List(Z), bder(c, r), ANTIMES(Nil, r, n - 1))
+    if (n == 0) AZERO else ASEQ(Z :: bs, bder(c, r), ANTIMES(Nil, r, n - 1))
 }
 
 // derivative w.r.t. a string (iterates bder)
@@ -385,7 +389,7 @@ def bsimp(r: ARexp): ARexp = r match {
   case ASEQ(bs1, r1, r2) => (bsimp(r1), bsimp(r2)) match {
       case (AZERO, _) => AZERO
       case (_, AZERO) => AZERO
-      case (AONE(bs2), r2s) => fuse(bs1 ++ bs2, r2s)
+      case (AONE(bs2), r2s) => fuse(bs2 ++ bs1, r2s)
       //case (AALTS(bs2, rs), r2s) => AALTS(bs1 ::: bs2, rs.map(ASEQ(Nil, _, r2s)))
       case (r1s, r2s) => ASEQ(bs1, r1s, r2s)
   }
@@ -413,7 +417,7 @@ def blex_simp(r: ARexp, s: List[Char]) : Bits = s match {
 }
 
 def blexer_simp(r: Rexp, s: String) : Val = 
-  decode(r, blex_simp(internalise(r), s.toList))
+  decode(r, blex_simp(internalise(r), s.toList).reverse)
 
 
 // extracts a string from value
@@ -496,9 +500,9 @@ val str1 = "aaba"
 println(bders_simp(internalise(reg1), str1.toList))
 println(bmkeps(bders_simp(internalise(reg1), str1.toList)))
 println(blexer_simp(reg1, str1))
+*/
 
-
-
+/*
 val reg2 = STAR("a" | "aa")
 
 println(asize(bders_simp(internalise(reg2), ("a" * 0).toList)))
@@ -509,8 +513,8 @@ println(asize(bders_simp(internalise(reg2), ("a" * 4).toList)))
 println(asize(bders_simp(internalise(reg2), ("a" * 50000).toList)))
 
 println(pretty(blexer_simp(reg2, "a" * 10001)))
-
-
+*/
+/*
 println("\nN-Times Test:")
 
 val nr = NTIMES(NTIMES("a", 200), 200)
