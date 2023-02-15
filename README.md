@@ -4,7 +4,7 @@ Run the code with
 
 ```isabelle build -c -v -d . Posix```
 
-Tested with Isabelle2021-1.
+Tested with Isabelle2022.
 
 
 * RegLangs.thy (contains basic definitions for Regular Languages)
