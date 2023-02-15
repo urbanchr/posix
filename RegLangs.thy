@@ -167,7 +167,6 @@ using assms
 
 
 
-
 section \<open>Regular Expressions\<close>
 
 datatype rexp =

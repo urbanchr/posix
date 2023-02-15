@@ -335,7 +335,7 @@ using Posix1(1) Posix_determ lexer_correct_None lexer_correct_Some apply fastfor
 using Posix1(1) lexer_correct_None lexer_correct_Some by blast
 
 
-subsection {* A slight reformulation of the lexer algorithm using stacked functions*}
+subsection \<open>A slight reformulation of the lexer algorithm using stacked functions\<close>
 
 fun flex :: "rexp \<Rightarrow> (val \<Rightarrow> val) => string \<Rightarrow> (val \<Rightarrow> val)"
   where

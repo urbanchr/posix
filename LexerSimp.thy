@@ -2,7 +2,7 @@ theory LexerSimp
   imports "Lexer" 
 begin
 
-section {* Lexer including some simplifications *}
+section \<open>Lexer including some simplifications\<close>
 
 
 fun F_RIGHT where

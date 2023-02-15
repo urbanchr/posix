@@ -109,7 +109,7 @@ lemma decode_code:
   by (smt append_Nil2 decode'_code old.prod.case)
 
 
-section {* Annotated Regular Expressions *}
+section \<open>Annotated Regular Expressions\<close>
 
 datatype arexp = 
   AZERO
