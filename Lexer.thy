@@ -16,7 +16,7 @@ where
 
 fun injval :: "rexp \<Rightarrow> char \<Rightarrow> val \<Rightarrow> val"
 where
-  "injval (CH d) c Void = Char d"
+  "injval (CH d) c Void = Char c"
 | "injval (ALT r1 r2) c (Left v1) = Left(injval r1 c v1)"
 | "injval (ALT r1 r2) c (Right v2) = Right(injval r2 c v2)"
 | "injval (SEQ r1 r2) c (Seq v1 v2) = Seq (injval r1 c v1) v2"

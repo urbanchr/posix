@@ -24,4 +24,5 @@ Tested with Isabelle2022.
 	 ClosedForms.thy
 	 GeneralRegexBound
 	 ClosedFormBounds.thy
-	 FBound.thy (formalises all results from Section 5 in the paper)
+	 FBound.thy (formalises all results from Section 5 in the paper;
+	 teh theorem annotated_size_bound establishes the result for annotated regular expressions)
