@@ -3,13 +3,11 @@
 //
 //   tested with 
 //
-//     Ammonite Repl 2.5.3 (Scala 2.13.8 Java 17.0.1)
-//     Ammonite Repl 2.5.4 (Scala 2.13.8 Java 17.0.1)       
-//     Scala 2.13.6 (OpenJDK 64-Bit Server VM, Java 17.0.1)
+//     Ammonite Repl 2.5.6 (Scala 2.13.10 Java 17.0.1)
 //
 //   call with
 //
-//   amm re-bit.sc     or   scala re-bit.sc
+//   amm re-bit.sc 
 //
 //   
 
@@ -368,15 +366,15 @@ def distinctWith[B](xs: List[B],
 
 
 // equivalence
-def eq(r1: ARexp, r2: ARexp) : Boolean = (r1, r2) match {
+def eqm(r1: ARexp, r2: ARexp) : Boolean = (r1, r2) match {
   case (AZERO, AZERO) => true
   case (AONE(_), AONE(_)) => true
   case (ACHAR(_, c), ACHAR(_, d)) => c == d
-  case (ASEQ(_, ra1, ra2), ASEQ(_, rb1, rb2)) => eq(ra1, rb1) && eq(ra2, rb2)
+  case (ASEQ(_, ra1, ra2), ASEQ(_, rb1, rb2)) => eqm(ra1, rb1) && eqm(ra2, rb2)
   case (AALTS(_, Nil), AALTS(_, Nil)) => true
-  case (AALTS(_, r1::rs1), AALTS(_, r2::rs2)) => eq(r1, r2) && eq(AALTS(Nil, rs1), AALTS(Nil, rs2))
-  case (ASTAR(_, r1), ASTAR(_, r2)) => eq(r1, r2)
-  case (ANTIMES(_, r1, n1), ANTIMES(_, r2, n2)) => n1 == n2 && eq(r1, r2)
+  case (AALTS(_, r1::rs1), AALTS(_, r2::rs2)) => eqm(r1, r2) && eqm(AALTS(Nil, rs1), AALTS(Nil, rs2))
+  case (ASTAR(_, r1), ASTAR(_, r2)) => eqm(r1, r2)
+  case (ANTIMES(_, r1, n1), ANTIMES(_, r2, n2)) => n1 == n2 && eqm(r1, r2)
   case _ => false
 }
 
@@ -386,12 +384,13 @@ def bsimp(r: ARexp): ARexp = r match {
       case (AZERO, _) => AZERO
       case (_, AZERO) => AZERO
       case (AONE(bs2), r2s) => fuse(bs1 ++ bs2, r2s)
+      // desroys POSIX property
       //case (AALTS(bs2, rs), r2s) => AALTS(bs1 ::: bs2, rs.map(ASEQ(Nil, _, r2s)))
       case (r1s, r2s) => ASEQ(bs1, r1s, r2s)
   }
   case AALTS(bs1, rs) => 
     distinctWith[ARexp](flts(rs.map(bsimp)), 
-                        (r1: ARexp, r2: ARexp) => eq(r1, r2) ) match {  
+                        (r1: ARexp, r2: ARexp) => eqm(r1, r2) ) match {  
       case Nil => AZERO
       case r::Nil => fuse(bs1, r)
       case rs => AALTS(bs1, rs)
@@ -437,9 +436,17 @@ def size(r: Rexp): Int = r match {
   case NTIMES(r1, n) => 1 + size(r1)
 }
 
-def asize(r: ARexp) : Int = size(erase(r)) 
+def asize(r: ARexp): Int = r match {
+  case AZERO => 1
+  case AONE(_) => 1
+  case ACHAR(_, _) => 1
+  case AALTS(_, rs) => 1 + rs.map(asize).sum
+  case ASEQ(_, r1, r2) => 1 + asize(r1) + asize(r2)
+  case ASTAR(_, r1) => 1 + asize(r1)
+  case ANTIMES(_, r1, n) => 1 + asize(r1)
+}
 
-// some pretty printing functionality for values
+// some pretty printing for values
 
 // function that counts occurences of elements in a list
 @tailrec
@@ -475,9 +482,32 @@ def pretty(v: Val) : String = v match {
   } 
 }
 
+// pretty printing for annotated regexes
+
+def pp2(bs: Bits) = "[]" //bs.mkString("[", ",", "]")
+
+def pp(r:ARexp): String = r match{
+  case AZERO => "AZERO"
+  case AONE(bs) => s"AONE(${pp2(bs)})"
+  case ACHAR(bs, c) => s"ACHAR(${pp2(bs)},$c)"
+  case AALTS(bs, rs) => s"ALTS(${pp2(bs)}, ${rs.map(pp).mkString(",")})"
+  case ASEQ(bs, r1, r2) => s"ASEQ(${pp2(bs)},${pp(r1)},${pp(r2)})"
+  case ASTAR(cs, r) => s"ASTAR(${pp2(cs)},${pp(r)})" 
+  case ANTIMES(cs, r, n) => s"ANT(${pp2(cs)},${pp(r)},$n)"
+}
+
+
 
 // Test cases
 // ==========
+
+
+def time_needed[T](n: Int, code: => T) = {
+  val start = System.nanoTime()
+  for (i <- 0 until n) code
+  val end = System.nanoTime()
+  (end - start)/(n * 1.0e9)
+}
 
 /*
 val reg = ("a" | "ab") ~ ("b" | "") 
@@ -496,47 +526,33 @@ val str1 = "aaba"
 println(bders_simp(internalise(reg1), str1.toList))
 println(bmkeps(bders_simp(internalise(reg1), str1.toList)))
 println(blexer_simp(reg1, str1))
-
-
-
-val reg2 = STAR("a" | "aa")
-
-println(asize(bders_simp(internalise(reg2), ("a" * 0).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 1).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 2).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 3).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 4).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 50000).toList)))
-
-println(pretty(blexer_simp(reg2, "a" * 10001)))
-
-
-println("\nN-Times Test:")
-
-val nr = NTIMES(NTIMES("a", 200), 200)
-val nreg = SEQ(nr, STAR("a"))
-val nstr = "a" * 50000
-
-println(pretty(blexer_simp(nreg, nstr)))
 */
 
+@main
+def test1() = {
+  
+  val reg = STAR("a" | "aa")
+  val areg = internalise(reg)
+  println(s"Star Test: ${reg}")
 
+  println(asize(bders_simp(areg, ("a" * 0).toList)))
+  println(asize(bders_simp(areg, ("a" * 1).toList)))
+  println(asize(bders_simp(areg, ("a" * 2).toList)))
+  println(asize(bders_simp(areg, ("a" * 3).toList)))
+  println(asize(bders_simp(areg, ("a" * 4).toList)))
+  println(asize(bders_simp(areg, ("a" * 50000).toList)))
 
-def time_needed[T](n: Int, code: => T) = {
-  val start = System.nanoTime()
-  for (i <- 0 until n) code
-  val end = System.nanoTime()
-  (end - start)/(n * 1.0e9)
+  println(pretty(blexer_simp(reg, "a" * 50001)))
 }
 
+
 @main
-def tests2() = {
+def test2() = {
 
-  println("\nStar Test:")
+  val reg = STAR("a" | "aa")
+  println(s"Star Test: ${reg}")
 
-  val reg2 = STAR("a" | "aa")
-
-  println(time_needed(10, blexer_simp(reg2, "a" * 10001)))
+  println(time_needed(10, blexer_simp(reg, "a" * 10001)))
 
   println("\nN-Times Test:")
 

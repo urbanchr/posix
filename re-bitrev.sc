@@ -3,19 +3,17 @@
 //
 //   tested with 
 //
-//     Ammonite Repl 2.5.3 (Scala 2.13.8 Java 17.0.1)
-//     Ammonite Repl 2.5.4 (Scala 2.13.8 Java 17.0.1)       
-//     Scala 2.13.6 (OpenJDK 64-Bit Server VM, Java 17.0.1)
+//     Ammonite Repl 2.5.6 (Scala 2.13.10 Java 17.0.1)
 //
 //   call with
 //
-//   amm re-bitrev.sc     or   scala re-bitrev.sc
+//   amm re-bitrev.sc     
 //
 // This version builds bit-sequences the natural way how
 // lists are constructed (from right to left). Therefore
 // it reverses the list before decoding. The advantage is
 // that the addition of elements to the bit-sequences is
-// faster.
+// faster (observation due to Flavio Melinte Citea)
 
 import scala.language.implicitConversions    
 import scala.language.reflectiveCalls
@@ -117,8 +115,7 @@ def internalise(r: Rexp) : ARexp = r match {
   case ZERO => AZERO
   case ONE => AONE(Nil)
   case CHAR(c) => ACHAR(Nil, c)
-  case ALT(r1, r2) => AALT(Nil, fuse(List(Z), internalise(r1)), 
-			                          fuse(List(S), internalise(r2)))
+  case ALT(r1, r2) => AALT(Nil, fuse(List(Z), internalise(r1)), fuse(List(S), internalise(r2)))
   case SEQ(r1, r2) => ASEQ(Nil, internalise(r1), internalise(r2))
   case STAR(r) => ASTAR(Nil, internalise(r))
   case NTIMES(r, n) => ANTIMES(Nil, internalise(r), n)
@@ -372,30 +369,30 @@ def distinctWith[B](xs: List[B],
 
 
 // equivalence
-def eq(r1: ARexp, r2: ARexp) : Boolean = (r1, r2) match {
+def eqm(r1: ARexp, r2: ARexp) : Boolean = (r1, r2) match {
   case (AZERO, AZERO) => true
   case (AONE(_), AONE(_)) => true
   case (ACHAR(_, c), ACHAR(_, d)) => c == d
-  case (ASEQ(_, ra1, ra2), ASEQ(_, rb1, rb2)) => eq(ra1, rb1) && eq(ra2, rb2)
+  case (ASEQ(_, ra1, ra2), ASEQ(_, rb1, rb2)) => eqm(ra1, rb1) && eqm(ra2, rb2)
   case (AALTS(_, Nil), AALTS(_, Nil)) => true
-  case (AALTS(_, r1::rs1), AALTS(_, r2::rs2)) => eq(r1, r2) && eq(AALTS(Nil, rs1), AALTS(Nil, rs2))
-  case (ASTAR(_, r1), ASTAR(_, r2)) => eq(r1, r2)
-  case (ANTIMES(_, r1, n1), ANTIMES(_, r2, n2)) => n1 == n2 && eq(r1, r2)
+  case (AALTS(_, r1::rs1), AALTS(_, r2::rs2)) => eqm(r1, r2) && eqm(AALTS(Nil, rs1), AALTS(Nil, rs2))
+  case (ASTAR(_, r1), ASTAR(_, r2)) => eqm(r1, r2)
+  case (ANTIMES(_, r1, n1), ANTIMES(_, r2, n2)) => n1 == n2 && eqm(r1, r2)
   case _ => false
 }
-
 
 def bsimp(r: ARexp): ARexp = r match {
   case ASEQ(bs1, r1, r2) => (bsimp(r1), bsimp(r2)) match {
       case (AZERO, _) => AZERO
       case (_, AZERO) => AZERO
       case (AONE(bs2), r2s) => fuse(bs2 ++ bs1, r2s)
+      // this simplification breaks posix rules
       //case (AALTS(bs2, rs), r2s) => AALTS(bs1 ::: bs2, rs.map(ASEQ(Nil, _, r2s)))
       case (r1s, r2s) => ASEQ(bs1, r1s, r2s)
   }
   case AALTS(bs1, rs) => 
     distinctWith[ARexp](flts(rs.map(bsimp)), 
-                        (r1: ARexp, r2: ARexp) => eq(r1, r2) ) match {  
+                        (r1: ARexp, r2: ARexp) => eqm(r1, r2) ) match {  
       case Nil => AZERO
       case r::Nil => fuse(bs1, r)
       case rs => AALTS(bs1, rs)
@@ -483,6 +480,15 @@ def pretty(v: Val) : String = v match {
 // Test cases
 // ==========
 
+
+def time_needed[T](n: Int, code: => T) = {
+  val start = System.nanoTime()
+  for (i <- 0 until n) code
+  val end = System.nanoTime()
+  (end - start)/(n * 1.0e9)
+}
+
+
 /*
 val reg = ("a" | "ab") ~ ("b" | "") 
 val str = "ab"
@@ -502,45 +508,31 @@ println(bmkeps(bders_simp(internalise(reg1), str1.toList)))
 println(blexer_simp(reg1, str1))
 */
 
-/*
-val reg2 = STAR("a" | "aa")
+@main
+def test1() = {
+  
+  val reg = STAR("a" | "aa")
+  val areg = internalise(reg)
+  println(s"Star Test: ${reg}")
 
-println(asize(bders_simp(internalise(reg2), ("a" * 0).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 1).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 2).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 3).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 4).toList)))
-println(asize(bders_simp(internalise(reg2), ("a" * 50000).toList)))
+  println(asize(bders_simp(areg, ("a" * 0).toList)))
+  println(asize(bders_simp(areg, ("a" * 1).toList)))
+  println(asize(bders_simp(areg, ("a" * 2).toList)))
+  println(asize(bders_simp(areg, ("a" * 3).toList)))
+  println(asize(bders_simp(areg, ("a" * 4).toList)))
+  println(asize(bders_simp(areg, ("a" * 50000).toList)))
 
-println(pretty(blexer_simp(reg2, "a" * 10001)))
-*/
-/*
-println("\nN-Times Test:")
-
-val nr = NTIMES(NTIMES("a", 200), 200)
-val nreg = SEQ(nr, STAR("a"))
-val nstr = "a" * 50000
-
-println(pretty(blexer_simp(nreg, nstr)))
-*/
-
-
-
-def time_needed[T](n: Int, code: => T) = {
-  val start = System.nanoTime()
-  for (i <- 0 until n) code
-  val end = System.nanoTime()
-  (end - start)/(n * 1.0e9)
+  println(pretty(blexer_simp(reg, "a" * 50001)))
 }
 
+
 @main
-def tests2() = {
+def test2() = {
 
-  println("\nStar Test:")
+  val reg = STAR("a" | "aa")
+  println(s"Star Test: ${reg}")
 
-  val reg2 = STAR("a" | "aa")
-
-  println(time_needed(10, blexer_simp(reg2, "a" * 10001)))
+  println(time_needed(10, blexer_simp(reg, "a" * 10001)))
 
   println("\nN-Times Test:")
 
