@@ -1,4 +1,4 @@
-// Dearivative-based lexer using Brzozowski derivatives
+// Derivative-based lexer using Brzozowski derivatives
 // and BitCode annotations from Sulzmann and Lu
 //
 //   tested with 

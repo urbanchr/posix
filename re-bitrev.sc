@@ -1,19 +1,21 @@
-// Dearivative-based lexer using Brzozowski derivatives
+// Derivative-based lexer using Brzozowski derivatives
 // and BitCode annotations from Sulzmann and Lu
 //
 //   tested with 
 //
-//     Ammonite Repl 2.5.6 (Scala 2.13.10 Java 17.0.1)
+//     Ammonite Repl 2.5.3 (Scala 2.13.8 Java 17.0.1)
+//     Ammonite Repl 2.5.4 (Scala 2.13.8 Java 17.0.1)       
+//     Scala 2.13.6 (OpenJDK 64-Bit Server VM, Java 17.0.1)
 //
 //   call with
 //
-//   amm re-bitrev.sc     
+//   amm re-bitrev.sc     or   scala re-bitrev.sc
 //
 // This version builds bit-sequences the natural way how
 // lists are constructed (from right to left). Therefore
 // it reverses the list before decoding. The advantage is
 // that the addition of elements to the bit-sequences is
-// faster (observation due to Flavio Melinte Citea)
+// faster.
 
 import scala.language.implicitConversions    
 import scala.language.reflectiveCalls
@@ -115,7 +117,8 @@ def internalise(r: Rexp) : ARexp = r match {
   case ZERO => AZERO
   case ONE => AONE(Nil)
   case CHAR(c) => ACHAR(Nil, c)
-  case ALT(r1, r2) => AALT(Nil, fuse(List(Z), internalise(r1)), fuse(List(S), internalise(r2)))
+  case ALT(r1, r2) => AALT(Nil, fuse(List(Z), internalise(r1)), 
+			                          fuse(List(S), internalise(r2)))
   case SEQ(r1, r2) => ASEQ(Nil, internalise(r1), internalise(r2))
   case STAR(r) => ASTAR(Nil, internalise(r))
   case NTIMES(r, n) => ANTIMES(Nil, internalise(r), n)
@@ -378,7 +381,7 @@ def eqm(r1: ARexp, r2: ARexp) : Boolean = (r1, r2) match {
   case (AALTS(_, r1::rs1), AALTS(_, r2::rs2)) => eqm(r1, r2) && eqm(AALTS(Nil, rs1), AALTS(Nil, rs2))
   case (ASTAR(_, r1), ASTAR(_, r2)) => eqm(r1, r2)
   case (ANTIMES(_, r1, n1), ANTIMES(_, r2, n2)) => n1 == n2 && eqm(r1, r2)
-  case _ => false
+  case _ => false 
 }
 
 def bsimp(r: ARexp): ARexp = r match {
@@ -386,7 +389,7 @@ def bsimp(r: ARexp): ARexp = r match {
       case (AZERO, _) => AZERO
       case (_, AZERO) => AZERO
       case (AONE(bs2), r2s) => fuse(bs2 ++ bs1, r2s)
-      // this simplification breaks posix rules
+      // destroys posix property
       //case (AALTS(bs2, rs), r2s) => AALTS(bs1 ::: bs2, rs.map(ASEQ(Nil, _, r2s)))
       case (r1s, r2s) => ASEQ(bs1, r1s, r2s)
   }
@@ -438,7 +441,15 @@ def size(r: Rexp): Int = r match {
   case NTIMES(r1, n) => 1 + size(r1)
 }
 
-def asize(r: ARexp) : Int = size(erase(r)) 
+def asize(r: ARexp): Int = r match {
+  case AZERO => 1
+  case AONE(_) => 1
+  case ACHAR(_, _) => 1
+  case AALTS(_, rs) => 1 + rs.map(asize).sum
+  case ASEQ(_, r1, r2) => 1 + asize(r1) + asize(r2)
+  case ASTAR(_, r1) => 1 + asize(r1)
+  case ANTIMES(_, r1, n) => 1 + asize(r1)
+}
 
 // some pretty printing functionality for values
 
@@ -487,7 +498,6 @@ def time_needed[T](n: Int, code: => T) = {
   val end = System.nanoTime()
   (end - start)/(n * 1.0e9)
 }
-
 
 /*
 val reg = ("a" | "ab") ~ ("b" | "") 
