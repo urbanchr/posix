@@ -24,7 +24,7 @@ fun sz where
 | "sz (SEQ r1 r2) = 1 + sz r1 + sz r2"
 | "sz (ALT r1 r2) = 1 + sz r1 + sz r2"
 | "sz (STAR r) = 1 + sz r"
-| "sz (NTIMES r n) = 1 + (n + 1) + sz r"
+| "sz (NTIMES r n) = 2 + sz r"
 
 
 fun 
